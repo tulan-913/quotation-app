@@ -1,0 +1,104 @@
+{
+  "name": "quotation-app",
+  "version": "1.0.0",
+  "description": "报价单管理系统",
+  "author": "Chloe <2441686096@qq.com>",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:server": "node server.js",
+    "dist": "electron-builder --win --mac --linux",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "build": "electron-builder",
+    "build:all": "npm run build:win && npm run build:mac && npm run build:mobile",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:mobile": "node build-mobile.js",
+    "build:android": "cd android && ./gradlew assembleDebug",
+    "postinstall": "npx cap sync",
+    "build:ios": "npx cap sync ios",
+    "dist:linux": "electron-builder --linux",
+    "sync:mobile": "capacitor sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^5.7.8",
+    "@capacitor/core": "^5.7.8",
+    "@capacitor/ios": "^5.7.8",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "puppeteer-core": "^24.4.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.7.8",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.example.quotation",
+    "npmRebuild": false,
+    "asar": true,
+    "productName": "报价单系统",
+    "copyright": "Copyright © 2023 M&T Manufacturing",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "main.js",
+      "preload.js",
+      "server/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "extraFiles": [
+        {
+          "from": "server",
+          "to": "server-resources"
+        }
+      ]
+    },
+    "mac": {
+      "identity": null,
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.business",
+      "icon": "build/icon.icns",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "不需要麦克风权限",
+        "NSCameraUsageDescription": "不需要摄像头权限"
+      },
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "extraResources": [
+      {
+        "from": "server/database",
+        "to": "database"
+      },
+      {
+        "from": "server/uploads",
+        "to": "uploads"
+      }
+    ]
+  },
+  "capacitor": {
+    "ios": {
+      "path": "ios"
+    },
+    "android": {
+      "path": "android"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+# Dependency directories
+node_modules/
+dist/
+.DS_Store
+.idea/
+.vscode/
+*.log
+.env
+www/
+android/
+ios/
+capacitor.config.ts
+build/
+uploads/
+database/

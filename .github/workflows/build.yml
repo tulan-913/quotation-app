@@ -1,0 +1,58 @@
+name: Build All Platforms
+on: [push]
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: |
+          mkdir -p server/database
+          mkdir -p server/uploads
+          npm install
+          npm run build -- --win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: |
+          mkdir -p server/database
+          mkdir -p server/uploads
+          echo "DISABLE_MAC_SIGNING=true" >> $GITHUB_ENV
+          npm install
+          npm run build -- --mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-build
+          path: dist/
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: |
+          npm install
+          npx cap add android
+          cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: android/app/build/outputs/apk/debug/
