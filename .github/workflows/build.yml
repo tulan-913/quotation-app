@@ -23,6 +23,7 @@ jobs:
           name: windows-build
           path: dist/
 
+  jobs:
   build-mac:
     runs-on: macos-latest
     steps:
@@ -31,10 +32,10 @@ jobs:
         with:
           node-version: 20
       - run: |
-          mkdir -p server/database
-          mkdir -p server/uploads
-          echo "DISABLE_MAC_SIGNING=true" >> $GITHUB_ENV
+          mkdir -p server/database server/uploads
           npm install
+          npm run build:web  # 新增这行
+          npx cap sync      # 确保同步
           npm run build -- --mac
       - uses: actions/upload-artifact@v4
         with:
@@ -49,8 +50,11 @@ jobs:
         with:
           node-version: 20
       - run: |
+          mkdir -p server/database server/uploads
           npm install
+          npm run build:web  # 新增这行
           npx cap add android
+          npx cap sync      # 必须步骤
           cd android && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
