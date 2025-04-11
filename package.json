@@ -20,9 +20,10 @@
     "build:ios": "npx cap sync ios",
     "dist:linux": "electron-builder --linux",
     "sync:mobile": "capacitor sync",
-    "build:web": "npm run build && cp -r dist www",
+    "build:web": "npm run build && (cp -R dist/* www/ || xcopy /E /Y dist\\* www\\ || true)",
     "prebuild:android": "npm run build:web",
-    "prebuild:ios": "npm run build:web"
+    "prebuild:ios": "npm run build:web",
+    "debug:android": "ls -la www/ && npx cap sync android"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.8",
