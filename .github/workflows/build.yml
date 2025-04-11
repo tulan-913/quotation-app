@@ -49,7 +49,12 @@ jobs:
           node-version: 20
       - run: |
           mkdir -p www
-          cp -R src/* www/ || xcopy /E /Y src\\* www\\
+          cp -R src/* www/ || true
+          echo '{
+          "appId": "com.example.quotation",
+          "appName": "报价单系统",
+          "webDir": "www"
+          }' > capacitor.config.json
           npm install
           npx cap add android
           npx cap sync
