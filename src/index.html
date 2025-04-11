@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报价单系统 | M&T Manufacturing</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --accent-color: #e74c3c;
+            --dark-color: #2c3e50;
+            --light-color: #ecf0f1;
+            --gray-color: #95a5a6;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        h1 {
+            color: var(--dark-color);
+            margin-bottom: 10px;
+            font-size: 2.2rem;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+        
+        .form-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px 5px 0 0;
+            font-size: 1.1rem;
+            margin-bottom: 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background-color: var(--light-color);
+            font-weight: 600;
+            width: 30%;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="email"],
+        input[type="tel"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        input[type="email"]:focus,
+        input[type="tel"]:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        input[type="file"] {
+            padding: 5px;
+        }
+        
+        .required {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-submit {
+            background-color: var(--secondary-color);
+            width: 100%;
+        }
+        
+        .btn-submit:hover {
+            background-color: #27ae60;
+        }
+        
+        .btn-view {
+            background-color: var(--primary-color);
+            width: 100%;
+        }
+        
+        .btn-search {
+            background-color: var(--dark-color);
+            width: auto;
+            margin: 20px auto;
+            display: block;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+        
+        .price-type-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .price-type-group select {
+            flex: 1;
+        }
+        
+        .price-type-group input {
+            flex: 2;
+        }
+        
+        @media (max-width: 768px) {
+            th, td {
+                padding: 8px 10px;
+                display: block;
+                width: 100%;
+            }
+            
+            th {
+                background-color: var(--light-color);
+                border-bottom: none;
+            }
+            
+            tr {
+                margin-bottom: 15px;
+                display: block;
+                border: 1px solid #eee;
+                border-radius: 4px;
+                padding: 10px;
+            }
+            
+            .price-type-group {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .form-section {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        .form-section:nth-child(2) { animation-delay: 0.1s; }
+        .form-section:nth-child(3) { animation-delay: 0.2s; }
+        .form-section:nth-child(4) { animation-delay: 0.3s; }
+        .form-section:nth-child(5) { animation-delay: 0.4s; }
+        .form-section:nth-child(6) { animation-delay: 0.5s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">M&T MANUFACTURING</div>
+            <h1>报价单录入系统</h1>
+            <p>请填写以下信息生成报价单</p>
+        </header>
+        
+        <form id="quotationForm" method="POST" enctype="multipart/form-data">
+            <!-- 客户信息部分 -->
+            <div class="form-section">
+                <h2 class="section-title">客户信息</h2>
+                <table>
+                    <tr>
+                        <th>客户名称 <span class="required">*</span></th>
+                        <td><input type="text" name="clientName" required placeholder="请输入客户全称"></td>
+                    </tr>
+                    <tr>
+                        <th>地址</th>
+                        <td><input type="text" name="address" placeholder="请输入详细地址"></td>
+                    </tr>
+                    <tr>
+                        <th>联系人 <span class="required">*</span></th>
+                        <td><input type="text" name="contact" required placeholder="联系人姓名"></td>
+                    </tr>
+                    <tr>
+                        <th>联系电话</th>
+                        <td><input type="tel" name="tel" placeholder="联系电话或手机"></td>
+                    </tr>
+                    <tr>
+                        <th>电子邮箱</th>
+                        <td><input type="email" name="email" placeholder="example@domain.com"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- 产品基本信息 -->
+            <div class="form-section">
+                <h2 class="section-title">产品信息</h2>
+                <table>
+                    <tr>
+                        <th>品名描述 <span class="required">*</span></th>
+                        <td><input type="text" name="description" required placeholder="产品详细描述"></td>
+                    </tr>
+                    <tr>
+                        <th>料号</th>
+                        <td><input type="text" name="materialCode" placeholder="产品料号"></td>
+                    </tr>
+                    <tr>
+                        <th>产品图片</th>
+                        <td><input type="file" name="photo" accept="image/*"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- 材料与要求 -->
+            <div class="form-section">
+                <h2 class="section-title">材料与要求</h2>
+                <table>
+                    <tr>
+                        <th>客户图纸材质</th>
+                        <td><input type="text" name="clientDwgMaterial" placeholder="客户指定的材料"></td>
+                    </tr>
+                    <tr>
+                        <th>评审后推荐材料</th>
+                        <td><input type="text" name="afterReviewMaterial" placeholder="评审后建议的材料"></td>
+                    </tr>
+                    <tr>
+                        <th>特殊要求</th>
+                        <td><input type="text" name="requirements" placeholder="任何特殊工艺要求"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- 价格信息 -->
+            <div class="form-section">
+                <h2 class="section-title">价格信息</h2>
+                <table>
+                    <tr>
+                        <th>单价类型 <span class="required">*</span></th>
+                        <td>
+                            <div class="price-type-group">
+                                <select name="unitPriceType" id="unitPriceType" required>
+                                    <option value="">选择单价类型</option>
+                                    <option value="RMB_VAT_CONTAINS">人民币含税</option>
+                                    <option value="RMB_NO_VAT">人民币未税</option>
+                                    <option value="USD_QUOTATION">美金报价</option>
+                                </select>
+                                <input type="number" step="0.01" name="unitPrice" id="unitPrice" required placeholder="单价">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>数量</th>
+                        <td><input type="text" name="quantity" placeholder="产品数量"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- 费用信息 -->
+            <div class="form-section">
+                <h2 class="section-title">费用信息</h2>
+                <table>
+                    <tr>
+                        <th>样板费</th>
+                        <td><input type="number" step="0.01" name="samplingCost" placeholder="样板费用"></td>
+                    </tr>
+                    <tr>
+                        <th>模具+工装费</th>
+                        <td><input type="number" step="0.01" name="mouldCost" placeholder="模具费用"></td>
+                    </tr>
+                    <tr>
+                        <th>样板备注</th>
+                        <td><input type="text" name="sampleNotes" placeholder="样板相关说明"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- 周期信息 -->
+            <div class="form-section">
+                <h2 class="section-title">周期信息</h2>
+                <table>
+                    <tr>
+                        <th>模具+工装周期</th>
+                        <td><input type="text" name="mouldCycle" placeholder="预计天数"></td>
+                    </tr>
+                    <tr>
+                        <th>产品量产周期</th>
+                        <td><input type="text" name="massProductionCycle" placeholder="预计天数"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <button type="submit" class="btn btn-submit">提交报价单</button>
+        </form>
+        
+        <div class="btn-group">
+            <button id="viewQuotationBtn" class="btn btn-view">查看最新报价单</button>
+            <a href="search.html" class="btn btn-search">料号/品名查询</a>
+        </div>
+    </div>
+
+    <script>
+        // 监听单价类型变化
+        document.getElementById('unitPriceType').addEventListener('change', function () {
+            const unitPriceType = this.value;
+            const unitPriceInput = document.getElementById('unitPrice');
+            
+            // 根据选择的单价类型更新placeholder
+            const placeholders = {
+                'RMB_VAT_CONTAINS': '人民币含税单价',
+                'RMB_NO_VAT': '人民币未税单价',
+                'USD_QUOTATION': '美金单价'
+            };
+            
+            unitPriceInput.placeholder = placeholders[unitPriceType] || '请输入单价';
+        });
+
+        // 表单提交处理
+        document.getElementById('quotationForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            // 验证必填字段
+            if (!this.clientName.value || !this.contact.value || !this.description.value) {
+                alert('请填写必填字段');
+                return;
+            }
+            const formData = new FormData(this);
+            
+            // 显示加载状态
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = '提交中...';
+            submitBtn.disabled = true;
+
+            fetch('http://localhost:4000/submit', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('提交成功！');
+                    // 显示查看按钮
+                    document.getElementById('viewQuotationBtn').style.display = 'inline-block';
+                    // 重置表单
+                    this.reset();
+                } else {
+                    throw new Error(data.error || '提交失败');
+                }
+            })
+            .catch(error => {
+                console.error('提交错误:', error);
+                alert('提交失败: ' + error.message);
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '提交报价单';
+            });
+        });
+        // 查看报价单按钮
+        document.getElementById('viewQuotationBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+    
+            // 直接跳转到报价单页面，不提交表单
+            window.location.href = 'quotation.html';
+    
+            fetch('http://localhost:4000/submit', {
+                method: 'POST',
+                body:formData
+            })
+            .then(response => response.json())
+            .then(data => {
+            if (data.success && data.id) {
+                window.location.href = `quotation.html?id=${data.id}`;
+            } else {
+                throw new Error('获取报价单ID失败');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('查看报价单失败: ' + error.message);
+        });
+    });
+    </script>
+</body>
+</html>

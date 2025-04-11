@@ -1,0 +1,60 @@
+name: Multi-platform Build
+
+on:
+  push:
+    tags: 
+      - 'v*.*.*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with: { node-version: 18 }
+    - run: npm ci
+    - run: npm run build:win
+    - uses: actions/upload-artifact@v3
+      with:
+        name: windows-build
+        path: dist/*.exe
+
+  build-mac:
+    needs: build-windows
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with: { node-version: 18 }
+    - run: npm ci
+    - run: npm run build:mac
+    - uses: actions/upload-artifact@v3
+      with:
+        name: mac-build
+        path: dist/*.dmg
+
+  build-linux:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with: { node-version: 18 }
+    - run: npm ci
+    - run: npm run build:linux
+    - uses: actions/upload-artifact@v3
+      with:
+        name: linux-build
+        path: dist/*.AppImage
+
+  create-release:
+    needs: [build-windows, build-mac, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v3
+      with: { path: artifacts }
+    - uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref }}
+        files: |
+          artifacts/**/*

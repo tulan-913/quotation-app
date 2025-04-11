@@ -1,0 +1,10 @@
+{
+    "appId": "com.example.quotation",
+    "appName": "Quotation App",
+    "webDir": "dist",
+    "bundledWebRuntime": false,
+    "server": {
+      "url": "http://localhost:4000",
+      "cleartext": true
+    }
+  }
