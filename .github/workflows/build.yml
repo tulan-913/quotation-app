@@ -31,10 +31,10 @@ jobs:
         with:
           node-version: 20
       - run: |
-          mkdir -p server/database server/uploads
+          mkdir -p server/database
+          mkdir -p server/uploads
+          echo "DISABLE_MAC_SIGNING=true" >> $GITHUB_ENV
           npm install
-          npm run build:web  # 新增这行
-          npx cap sync      # 确保同步
           npm run build -- --mac
       - uses: actions/upload-artifact@v4
         with:
@@ -42,47 +42,17 @@ jobs:
           path: dist/
 
   build-android:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-        - uses: actions/setup-node@v4
-          with:
-            node-version: 20
-            cache: 'npm'
-        
-        # 新增Java环境（Android必需）
-        - name: Setup JDK
-          uses: actions/setup-java@v3
-          with:
-            distribution: 'zulu'
-            java-version: '17'
-
-        - name: Prepare environment
-          run: |
-            mkdir -p server/database server/uploads www
-            ls -la  # 调试用，查看目录结构
-            
-        - name: Install dependencies
-          run: |
-            npm ci
-            npm list electron capacitor  # 验证关键依赖版本
-            
-        # 关键修复：确保先构建网页资源
-        - name: Build web assets
-          run: |
-            npm run build
-            ls -la dist/  # 验证构建输出
-            cp -R dist/* www/ || echo "Warning: Copy failed but continuing..."
-            ls -la www/   # 验证www目录
-            
-        # 新增Capacitor初始化检查
-        - name: Initialize Capacitor
-          run: |
-            npx cap init "报价单系统" "com.example.quotation" --web-dir=www
-            npx cap add android
-            npx cap sync
-            
-        - name: Build Android APK
-          run: |
-            cd android
-            ./gradlew assembleDebug --info  # 增加详细日志
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: |
+          npm install
+          npx cap add android
+          cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: android/app/build/outputs/apk/debug/
