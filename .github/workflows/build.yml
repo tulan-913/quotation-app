@@ -35,20 +35,6 @@ jobs:
           cp -R src/* www/ || xcopy /E /Y src\\* www\\ 
           npm install
           npm run build -- --mac
-      - name: Notarize macOS App
-        env:
-          APPLE_ID: "2441686096@qq.com"
-          APPLE_ID_PASSWORD: "${{ secrets.AC_PASSWORD }}"
-          APP_PATH: "dist/mac-build.dmg"
-        run: |
-          xcode-select --install
-          
-          xcrun notarytool submit "${APP_PATH}" \
-            --apple-id "${APPLE_ID}" \
-            --password "${APPLE_ID_PASSWORD}" \          
-            --wait
-          
-          xcrun stapler staple "${APP_PATH}"
       - uses: actions/upload-artifact@v4
         with:
           name: mac-build
