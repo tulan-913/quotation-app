@@ -39,7 +39,7 @@ jobs:
         env:
           APPLE_ID: "2441686096@qq.com"
           APPLE_ID_PASSWORD: "${{ secrets.AC_PASSWORD }}"
-          APP_PATH: "dist/quotation-app.dmg"
+          APP_PATH: "dist/mac-build.dmg"
         run: |
           xcode-select --install
           
