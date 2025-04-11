@@ -51,6 +51,7 @@ jobs:
           mkdir -p www
           cp -R src/* www/ || xcopy /E /Y src\\* www\\
           npm install
+          npx cap add android
           npx cap sync
           cd android && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
