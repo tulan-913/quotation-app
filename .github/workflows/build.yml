@@ -31,9 +31,10 @@ jobs:
         with:
           node-version: 20
       - run: |
-          mkdir -p server/database
-          mkdir -p server/uploads
-          echo "DISABLE_MAC_SIGNING=true" >> $GITHUB_ENV
+          # 确保目录存在
+          mkdir -p www
+          # 复制src内容到www（跨平台命令）
+          cp -R src/* www/ || xcopy /E /Y src\\* www\\ 
           npm install
           npm run build -- --mac
       - uses: actions/upload-artifact@v4
@@ -49,8 +50,10 @@ jobs:
         with:
           node-version: 20
       - run: |
+          mkdir -p www
+          cp -R src/* www/ || xcopy /E /Y src\\* www\\
           npm install
-          npx cap add android
+          npx cap sync
           cd android && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:

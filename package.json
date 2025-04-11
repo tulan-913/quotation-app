@@ -7,22 +7,24 @@
   "scripts": {
     "start": "electron .",
     "start:server": "node server.js",
-    "dist": "electron-builder --win --mac --linux",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
+  
+    // 核心构建命令
     "build": "electron-builder",
-    "build:all": "npm run build:win && npm run build:mac && npm run build:mobile",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
-    "build:mobile": "node build-mobile.js",
-    "build:android": "cd android && ./gradlew assembleDebug",
+    "build:linux": "electron-builder --linux",
+    
+    // 移动端相关
+    "build:mobile": "npm run build:web && node build-mobile.js",
+    "build:android": "npm run build:web && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "build:ios": "npm run build:web && npx cap sync ios"
+    
+    // 辅助命令
+    "build:web": "mkdir -p www && (cp -R src/* www/ || xcopy /E /Y src\\* www\\)",
     "postinstall": "npx cap sync",
-    "build:ios": "npx cap sync ios",
-    "dist:linux": "electron-builder --linux",
-    "sync:mobile": "capacitor sync",
-    "build:web": "npm run build && (cp -R dist/* www/ || xcopy /E /Y dist\\* www\\ || true)",
-    "prebuild:android": "npm run build:web",
-    "prebuild:ios": "npm run build:web",
+    "sync:mobile": "npx cap sync",
+    
+    // 调试命令
     "debug:android": "ls -la www/ && npx cap sync android"
   },
   "dependencies": {
