@@ -1,65 +1,128 @@
 name: Build All Platforms
 on: 
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # 全局环境变量
+  NODE_VERSION: 20
   ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build-windows:
+    name: Build Windows
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: |
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Create required directories
+        run: |
           mkdir -p server/database
           mkdir -p server/uploads
-          npm install
-          npm run build -- --win
-      - uses: actions/upload-artifact@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows package
+        run: npm run build -- --win
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: dist/
+          retention-days: 3
 
-          
   build-mac:
+    name: Build macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: |
-          mkdir -p server/database server/uploads
-          npm install
-          npm run build:web  # 新增这行
-          npx cap sync      # 确保同步
-          npm run build -- --mac
-      - uses: actions/upload-artifact@v4
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Create required directories
+        run: |
+          mkdir -p server/database server/uploads www
+          echo "DISABLE_MAC_SIGNING=true" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare web assets
+        run: |
+          npm run build
+          cp -R dist/* www/ || true  # 兼容Windows和Unix系统
+
+      - name: Sync Capacitor
+        run: npx cap sync
+
+      - name: Build macOS package
+        run: npm run build -- --mac
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: mac-build
           path: dist/
+          retention-days: 3
 
   build-android:
+    name: Build Android
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: |
-          mkdir -p server/database server/uploads
-          npm install
-          npm run build:web  # 新增这行
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Create required directories
+        run: |
+          mkdir -p server/database server/uploads www
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare web assets
+        run: |
+          npm run build
+          cp -R dist/* www/ || true
           npx cap add android
-          npx cap sync      # 必须步骤
-          cd android && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
+          npx cap sync
+
+      - name: Build Android APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: android-build
           path: android/app/build/outputs/apk/debug/
+          retention-days: 3
