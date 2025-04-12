@@ -1,8 +1,0 @@
-{
-    "source": ["dist/mac/*.app"],
-    "bundle_id": "com.example.quotation",
-    "apple_id": {
-      "username": "2441686096@qq.com",
-      "password": "@env:AC_PASSWORD"
-    }
-  }
