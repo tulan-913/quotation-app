@@ -36,7 +36,6 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "afterSign": "scripts/notarize.js",
     "appId": "com.example.quotation",
     "npmRebuild": false,
     "asar": true,
