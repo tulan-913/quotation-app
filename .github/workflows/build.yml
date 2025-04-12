@@ -28,17 +28,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: |
-          mkdir -p www
-          cp -R src/* www/ || xcopy /E /Y src\\* www\\ 
-          npm install
+      
+      - name: Install gon
+        run: brew install gon
+
+      - name: Build and Notarize
+        env:
+          NOTARIZE_EMAIL: "2441686096@qq.com"
+          NOTARIZE_PASSWORD: ${{ secrets.AC_PASSWORD }}
+        run: |
           npm run build -- --mac
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-build
-          path: dist/
+          
+          echo '{
+            "source": ["dist/mac/*.app"],
+            "bundle_id": "com.example.quotation",
+            "apple_id": {
+              "username": "'"$NOTARIZE_EMAIL"'",
+              "password": "'"$NOTARIZE_PASSWORD"'"
+            }
+          }' > gon.json
+          
+          gon gon.json
 
   build-android:
     runs-on: ubuntu-latest
