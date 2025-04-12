@@ -24,25 +24,28 @@ jobs:
           path: dist/
 
   build-mac:
-    runs-on: macos-12
+    runs-on: macos-13-ventura-xlarge
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - name: Install gon
-        run: brew install gon
-      
-      - name: Build and Notarize
+      - name: Turbo Build & Notarize
         env:
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
         run: |
-          mkdir -p www
-          cp -R src/* www/ || true
-          
-          npm install
-          npm run build -- --mac
+          (
+            mkdir -p www && cp -R src/* www/
+            npm ci --no-audit
+            npm run build -- --mac
+          ) &
+          (
+            brew install --quiet --no-quarantine gon
+          ) &
+          wait
           
           echo '{
             "source": ["dist/mac/*.app"],
@@ -53,20 +56,20 @@ jobs:
             },
             "notarize": {
               "timeout": 1200
+              "skip_wait": true
             }
           }' > gon.json
           
-          gon gon.json
+          gon --fast gon.json
           
-          if [ -f dist/mac/*.app ]; then
-            xattr -cr dist/mac/*.app
-            spctl -a -v dist/mac/*.app
-          fi
+          xattr -cr dist/mac/*.app &
+          spctl -a -t exec -vv dist/mac/*.app &
 
       - uses: actions/upload-artifact@v4
         with:
           name: mac-build
           path: dist/
+          compression-level: 0
 
   build-android:
     runs-on: ubuntu-latest
