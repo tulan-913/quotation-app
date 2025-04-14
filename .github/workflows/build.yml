@@ -73,19 +73,24 @@ jobs:
         with:
           node-version: 20
       
-      # 1. 清理并强制重建 iOS 平台
-      - name: Recreate iOS platform
+      # 1. 完整清理并重建
+      - name: Setup iOS Environment
         run: |
-          rm -rf ios || true
+          # 彻底删除旧文件
+          rm  ios www node_modules
+          
+          # 重新安装
           npm install
           npm run build:web
-          npx cap add ios --force
           
-          # 手动创建 Podfile 如果缺失
-          if [ ! -f "ios/App/Podfile" ]; then
-            cd ios/App
+          # 添加 iOS 平台（不使用 --force）
+          npx cap add ios
+          
+          # 确保 Podfile 存在
+          cd ios/App
+          if [ ! -f "Podfile" ]; then
             pod init
-            echo "platform :ios, '13.0'" >> Podfile
+            echo "platform :ios, '13.0'" > Podfile
             echo "target 'App' do" >> Podfile
             echo "  use_frameworks!" >> Podfile
             echo "  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'" >> Podfile
@@ -93,14 +98,15 @@ jobs:
             echo "end" >> Podfile
           fi
           
-          cd ios && pod install
+          # 安装依赖
+          pod install
       
       # 2. 构建 IPA
       - name: Build IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
                     -scheme App \
-                    -configuration Debug \
+                    -configuration Release \
                     -archivePath build/App.xcarchive \
                     archive
           xcodebuild -exportArchive \
