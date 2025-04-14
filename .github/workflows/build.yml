@@ -73,6 +73,19 @@ jobs:
         with:
           node-version: 20
       
+      - name: Ensure Config Exists
+        run: |
+          if [ ! -f "capacitor.config.json" ]; then
+            echo '{
+              "appId": "com.example.quotation",
+              "appName": "报价单系统",
+              "webDir": "www",
+              "bundledWebRuntime": false
+            }' > capacitor.config.json
+            echo "Generated capacitor.config.json"
+          fi
+          cat capacitor.config.json
+
       # 1. 验证关键文件
       - name: Verify Config Files
         run: |
