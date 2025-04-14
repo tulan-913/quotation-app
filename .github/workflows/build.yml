@@ -63,3 +63,27 @@ jobs:
         with:
           name: android-build
           path: android/app/build/outputs/apk/debug/
+
+
+  build-ios:
+    runs-on: macos-latest  # 必须使用 macOS 环境
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Dependencies
+        run: |
+          mkdir -p www
+          cp -R src/* www/ || true
+          npm install
+          npx cap add ios
+          cd ios && pod install
+      - name: Build .ipa (Development)
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -archivePath build/App.xcarchive archive
+          xcodebuild -exportArchive -archivePath build/App.xcarchive -exportOptionsPlist ios/App/exportOptions.plist -exportPath build/ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: build/ipa
