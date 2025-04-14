@@ -73,32 +73,33 @@ jobs:
         with:
           node-version: 20
       
-      # 1. 确保基础环境
-      - name: Verify source files
+      # 1. 验证关键文件
+      - name: Verify Config Files
         run: |
-          ls -la src/
-          [ -f "src/index.html" ] || { echo "Error: src/index.html is missing"; exit 1; }
+          [ -f "capacitor.config.json" ] || { echo "Error: capacitor.config.json missing"; exit 1; }
+          [ -f "src/index.html" ] || { echo "Error: src/index.html missing"; exit 1; }
       
       # 2. 构建流程
       - name: Build Process
         run: |
-          # 清理并创建 www 目录
-          npm run build:web
+          # 清理并重建 www
+          rm www && mkdir -p www
+          cp -R src/* www/ || true
           
-          # 验证 www 目录结构
-          echo "Generated www content:"
-          ls -la www/
+          # 初始化 Capacitor（关键修复！）
+          npx cap init --web-dir www --npm-client npm
           
-          # 安装依赖
+          # 同步平台
           npm install
-          
-          # 初始化 iOS 平台
           npx cap add ios
+          npx cap sync
+          
+          # 安装 iOS 依赖
           cd ios/App
           pod install
           cd ../..
       
-      # 3. 构建 IPA（保持不变）
+      # 3. 构建 IPA
       - name: Build IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
