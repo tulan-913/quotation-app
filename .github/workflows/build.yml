@@ -77,8 +77,8 @@ jobs:
           mkdir -p www
           cp -R src/* www/ || true
           npm install
-          npx cap init
-          npx cap add ios
+          npx cap init --config mobile/capacitor.config.json --force
+          npx cap add ios --config mobile/capacitor.config.json
           cd ios && pod install
       - name: Build .ipa (Development)
         run: |

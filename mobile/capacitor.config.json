@@ -4,6 +4,9 @@
     "bundledWebRuntime": false,
     "npmClient": "npm",
     "webDir": "www",
+    "ios": {
+      "path": "ios"  
+    },
     "linuxAndroidStudioPath": "/usr/bin/android-studio",
     "plugins": {
       "SplashScreen": {
