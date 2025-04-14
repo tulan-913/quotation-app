@@ -73,26 +73,27 @@ jobs:
         with:
           node-version: 20
       
-      # 1. 初始化环境
-      - name: Setup Environment
+      # 1. 安全的清理旧文件（忽略不存在的目录）
+      - name: Clean Workspace
         run: |
-          # 清理旧文件
-          rm ios www node_modules
-          
-          # 安装依赖
+          [ -d "ios" ] && rm ios || true
+          [ -d "www" ] && rm www || true
+          [ -d "node_modules" ] && rm node_modules || true
+      
+      # 2. 安装依赖
+      - name: Install Dependencies
+        run: |
           npm install
-          
-          # 构建网页
           mkdir -p www
           cp -R src/* www/ || true
-          
-          # 初始化iOS平台
+      
+      # 3. 初始化iOS平台
+      - name: Setup iOS Platform
+        run: |
           npx cap add ios
-          
-          # 进入iOS目录
           cd ios/App
           
-          # 创建Podfile（如果不存在）
+          # 确保Podfile存在
           if [ ! -f "Podfile" ]; then
             pod init
             echo "platform :ios, '13.0'" > Podfile
@@ -103,11 +104,10 @@ jobs:
             echo "end" >> Podfile
           fi
           
-          # 安装iOS依赖
           pod install
           cd ../..
       
-      # 2. 构建IPA
+      # 4. 构建IPA
       - name: Build IPA
         run: |
           cd ios
@@ -122,7 +122,7 @@ jobs:
                     -exportOptionsPlist App/exportOptions.plist \
                     -exportPath build/ipa
       
-      # 3. 上传产物
+      # 5. 上传产物
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
