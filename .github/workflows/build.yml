@@ -73,24 +73,34 @@ jobs:
         with:
           node-version: 20
       
-      - name: Install dependencies
+      # 1. 强制删除残留的 ios 目录（如果有）
+      - name: Clean residual files
+        run: rm ios || true
+      
+      # 2. 完整构建流程
+      - name: Build iOS App
         run: |
           npm install
+          npm run build:web
+          
+          # 关键步骤：在 macOS 环境下重新添加 iOS 平台
+          npx cap add ios
+          
+          # 安装 iOS 依赖
           cd ios && pod install
-      
-      - name: Build IPA
-        run: |
-          npm run build:ios
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          
+          # 构建 IPA
+          xcodebuild -workspace App/App.xcworkspace \
                     -scheme App \
                     -configuration Debug \
                     -archivePath build/App.xcarchive \
                     archive
           xcodebuild -exportArchive \
                     -archivePath build/App.xcarchive \
-                    -exportOptionsPlist ios/App/exportOptions.plist \
+                    -exportOptionsPlist App/exportOptions.plist \
                     -exportPath build/ipa
       
+      # 3. 上传产物
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
