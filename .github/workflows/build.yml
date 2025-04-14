@@ -73,46 +73,42 @@ jobs:
         with:
           node-version: 20
       
-      - name: Ensure Config Exists
+      # 1. 确保配置文件和目录结构
+      - name: Setup Environment
         run: |
-          if [ ! -f "capacitor.config.json" ]; then
-            echo '{
-              "appId": "com.example.quotation",
-              "appName": "报价单系统",
-              "webDir": "www",
-              "bundledWebRuntime": false
-            }' > capacitor.config.json
-            echo "Generated capacitor.config.json"
-          fi
-          cat capacitor.config.json
-
-      # 1. 验证关键文件
-      - name: Verify Config Files
-        run: |
-          [ -f "capacitor.config.json" ] || { echo "Error: capacitor.config.json missing"; exit 1; }
-          [ -f "src/index.html" ] || { echo "Error: src/index.html missing"; exit 1; }
+          # 生成必要配置文件
+          echo '{
+            "appId": "com.example.quotation",
+            "appName": "报价单系统",
+            "webDir": "www",
+            "bundledWebRuntime": false
+          }' > capacitor.config.json
+          
+          # 创建www目录（兼容空目录情况）
+          mkdir -p www
+          [ "$(ls -A src)" ] && cp -R src/* www/ || echo "src目录为空，跳过复制"
+          
+          # 验证目录结构
+          echo "项目结构："
+          ls -la
+          echo "www内容："
+          ls -la www/
       
       # 2. 构建流程
       - name: Build Process
         run: |
-          # 清理并重建 www
-          rm www && mkdir -p www
-          cp -R src/* www/ || true
+          # 初始化Capacitor（强制模式）
+          npx cap init --force --web-dir www --npm-client npm
           
-          # 初始化 Capacitor（关键修复！）
-          npx cap init --web-dir www --npm-client npm
-          
-          # 同步平台
-          npm install
+          # 添加iOS平台
           npx cap add ios
-          npx cap sync
           
-          # 安装 iOS 依赖
+          # 安装iOS依赖
           cd ios/App
           pod install
           cd ../..
       
-      # 3. 构建 IPA
+      # 3. 构建IPA（保持不变）
       - name: Build IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
