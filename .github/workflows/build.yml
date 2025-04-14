@@ -77,7 +77,7 @@ jobs:
       - name: Setup Environment
         run: |
           # 清理旧文件
-          rm -rf ios www node_modules
+          rm ios www node_modules
           
           # 安装依赖
           npm install
