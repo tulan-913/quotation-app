@@ -66,38 +66,24 @@ jobs:
 
 
   build-ios:
-    runs-on: macos-latest
+    runs-on: macos-latest  
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Prepare iOS Project
+      
+      - name: Install Dependencies
         run: |
-          mkdir -p www
-          cp -R src/* www/ || true
           npm install
-          rm ios
-          npx cap add ios
-          npx cap sync ios  
-
-      - name: Debug Directory Structure
-        run: |
-          ls -la
-          ls -la ios/  
-
-      - name: Install CocoaPods
-        run: |
-          sudo gem install cocoapods -v 1.12.0
-          cd ios && pod install --repo-update
-
+          npm run build:ios  # 这会运行 `npx cap sync ios`
+          cd ios && pod install
+      
       - name: Build .ipa
         run: |
-          cd ios
-          xcodebuild -workspace App/App.xcworkspace -scheme App -configuration Debug -archivePath ../build/App.xcarchive archive
-          xcodebuild -exportArchive -archivePath ../build/App.xcarchive -exportOptionsPlist App/exportOptions.plist -exportPath ../build/ipa
-
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -archivePath build/App.xcarchive archive
+          xcodebuild -exportArchive -archivePath build/App.xcarchive -exportOptionsPlist ios/App/exportOptions.plist -exportPath build/ipa
+      
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
