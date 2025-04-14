@@ -78,6 +78,7 @@ jobs:
           mkdir -p www
           cp -R src/* www/ || true
           npm install
+          rm ios
           npx cap add ios
           npx cap sync ios  
 
