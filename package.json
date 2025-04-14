@@ -14,7 +14,7 @@
     "build:mobile": "npm run build:web && node build-mobile.js",
     "build:android": "npm run build:web && echo '{\"appId\":\"com.example.quotation\",\"appName\":\"报价单系统\",\"webDir\":\"www\"}' > capacitor.config.json && npx cap add android && npx cap sync android && cd android && ./gradlew assembleDebug",
     "build:ios": "npm run build:web && npx cap sync ios",
-    "build:web": "mkdir -p www && (cp -R src/* www/ || xcopy /E /Y src\\* www\\)",
+    "build:web": "mkdir -p www && rsync -a src/ www/ || (mkdir -p www && cp -R src/* www/)",
     "postinstall": "npx cap sync",
     "sync:mobile": "npx cap sync",
     "debug:android": "ls -la www/ && npx cap sync android"
