@@ -5,7 +5,7 @@
     "npmClient": "npm",
     "webDir": "www",
     "ios": {
-      "path": "../ios"  
+      "path": "ios"  
     },
     "linuxAndroidStudioPath": "/usr/bin/android-studio",
     "plugins": {
