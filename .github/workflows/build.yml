@@ -73,61 +73,44 @@ jobs:
         with:
           node-version: 20
       
-      # 1. 安全清理（兼容Windows提交）
-      - name: Clean workspace
+      # 1. 确保基础环境
+      - name: Verify source files
         run: |
-          # 仅删除存在的目录
-          [ -d "ios" ] && rm -rf ios || true
-          [ -d "www" ] && rm -rf www || true
-          [ -d "node_modules" ] && rm -rf node_modules || true
-
-      # 2. 初始化环境
-      - name: Setup Environment
+          ls -la src/
+          [ -f "src/index.html" ] || { echo "Error: src/index.html is missing"; exit 1; }
+      
+      # 2. 构建流程
+      - name: Build Process
         run: |
+          # 清理并创建 www 目录
+          npm run build:web
+          
+          # 验证 www 目录结构
+          echo "Generated www content:"
+          ls -la www/
+          
           # 安装依赖
           npm install
           
-          # 构建网页
-          mkdir -p www
-          cp -R src/* www/ || true
-          
-          # 初始化iOS平台
+          # 初始化 iOS 平台
           npx cap add ios
-          
-          # 进入iOS目录
           cd ios/App
-          
-          # 创建Podfile（如果不存在）
-          if [ ! -f "Podfile" ]; then
-            pod init
-            echo "platform :ios, '13.0'" > Podfile
-            echo "target 'App' do" >> Podfile
-            echo "  use_frameworks!" >> Podfile
-            echo "  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'" >> Podfile
-            echo "  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'" >> Podfile
-            echo "end" >> Podfile
-          fi
-          
-          # 安装iOS依赖
           pod install
           cd ../..
       
-      # 3. 构建IPA
+      # 3. 构建 IPA（保持不变）
       - name: Build IPA
         run: |
-          cd ios
-          xcodebuild -workspace App/App.xcworkspace \
+          xcodebuild -workspace ios/App/App.xcworkspace \
                     -scheme App \
                     -configuration Release \
                     -archivePath build/App.xcarchive \
                     archive
-          
           xcodebuild -exportArchive \
                     -archivePath build/App.xcarchive \
-                    -exportOptionsPlist App/exportOptions.plist \
+                    -exportOptionsPlist ios/App/exportOptions.plist \
                     -exportPath build/ipa
       
-      # 4. 上传产物
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
