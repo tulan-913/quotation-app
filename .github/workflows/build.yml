@@ -73,21 +73,26 @@ jobs:
         with:
           node-version: 20
       
-      # 1. 完整清理并重建
-      - name: Setup iOS Environment
+      # 1. 初始化环境
+      - name: Setup Environment
         run: |
-          # 彻底删除旧文件
-          rm  ios www node_modules
+          # 清理旧文件
+          rm -rf ios www node_modules
           
-          # 重新安装
+          # 安装依赖
           npm install
-          npm run build:web
           
-          # 添加 iOS 平台（不使用 --force）
+          # 构建网页
+          mkdir -p www
+          cp -R src/* www/ || true
+          
+          # 初始化iOS平台
           npx cap add ios
           
-          # 确保 Podfile 存在
+          # 进入iOS目录
           cd ios/App
+          
+          # 创建Podfile（如果不存在）
           if [ ! -f "Podfile" ]; then
             pod init
             echo "platform :ios, '13.0'" > Podfile
@@ -98,20 +103,23 @@ jobs:
             echo "end" >> Podfile
           fi
           
-          # 安装依赖
+          # 安装iOS依赖
           pod install
+          cd ../..
       
-      # 2. 构建 IPA
+      # 2. 构建IPA
       - name: Build IPA
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          cd ios
+          xcodebuild -workspace App/App.xcworkspace \
                     -scheme App \
                     -configuration Release \
                     -archivePath build/App.xcarchive \
                     archive
+          
           xcodebuild -exportArchive \
                     -archivePath build/App.xcarchive \
-                    -exportOptionsPlist ios/App/exportOptions.plist \
+                    -exportOptionsPlist App/exportOptions.plist \
                     -exportPath build/ipa
       
       # 3. 上传产物
