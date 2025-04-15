@@ -136,14 +136,15 @@ jobs:
           done
           cd ../..
 
-      - name: Build Without Team ID
+      - name: Build Unsigned IPA
         run: |
-            # 1. 仅使用sed修改工程文件（移除plutil命令）
+            # 1. 彻底清除签名设置（三种方式确保生效）
             sed -i '' 's/DEVELOPMENT_TEAM = .*;//' ios/App/App.xcodeproj/project.pbxproj
             sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;//' ios/App/App.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_STYLE = .*;/CODE_SIGN_STYLE = Manual;/' ios/App/App.xcodeproj/project.pbxproj
             sed -i '' 's/ProvisioningStyle = .*;/ProvisioningStyle = Manual;/' ios/App/App.xcodeproj/project.pbxproj
         
-            # 2. 创建免签名配置
+            # 2. 创建强制免签名配置
             echo '<?xml version="1.0"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
             <plist version="1.0">
@@ -154,21 +155,30 @@ jobs:
                 <string>development</string>
                 <key>signingStyle</key>
                 <string>manual</string>
+                <key>uploadBitcode</key>
+                <false/>
+                <key>uploadSymbols</key>
+                <false/>
+                <key>distributionBundleIdentifier</key>
+                <string>com.example.temp</string>
             </dict>
             </plist>' > exportOptions.plist
         
-            # 3. 单次构建+导出（关键修改）
+            # 3. 构建命令（关键参数组合）
             xcodebuild -workspace ios/App/App.xcworkspace \
                       -scheme App \
                       -configuration Debug \
                       -archivePath build/App.xcarchive \
-                      CODE_SIGN_IDENTITY="" \
+                      CODE_SIGN_IDENTITY="-" \
                       CODE_SIGNING_REQUIRED=NO \
                       CODE_SIGNING_ALLOWED=NO \
                       DEVELOPMENT_TEAM="" \
+                      PROVISIONING_PROFILE_SPECIFIER="" \
                       PROVISIONING_PROFILE="" \
+                      OTHER_CODE_SIGN_FLAGS="--deep" \
                       archive
         
+            # 4. 强制导出未签名IPA
             xcodebuild -exportArchive \
                       -archivePath build/App.xcarchive \
                       -exportOptionsPlist exportOptions.plist \
