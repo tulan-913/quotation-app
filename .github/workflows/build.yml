@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+         node-version: 20
       - run: |
           mkdir -p server/database
           mkdir -p server/uploads
@@ -66,14 +66,19 @@ jobs:
 
 
   build-ios:
-    runs-on: macos-latest  # 必须使用 macOS，因为 iOS 构建需要 Xcode
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Ensure Config Exists
+      
+      - name: 安装必要依赖
+        run: |
+          npm install -g @capacitor/cli@latest
+          npm install
+          
+      - name: 确保配置文件存在
         run: |
           if [ ! -f "capacitor.config.json" ]; then
             echo '{
@@ -82,38 +87,44 @@ jobs:
               "webDir": "www",
               "bundledWebRuntime": false
             }' > capacitor.config.json
-            echo "Generated capacitor.config.json"
           fi
-          cat capacitor.config.json
-
-      - name: Build Process
+          
+      - name: 准备构建目录
         run: |
-          # 清理 www（macOS 兼容）
-          if [ -d "www" ]; then
-            rm -rf www
-          fi
+          # 清理并创建www目录
+          rm -rf www || true
           mkdir -p www
-
-          # 复制源文件
-          if [ -d "src" ]; then
+          
+          # 复制文件
+          if [ -d "dist" ]; then
+            cp -R dist/* www/
+          elif [ -d "src" ]; then
             cp -R src/* www/
           else
-            echo "Error: src directory not found"
+            echo "错误：找不到源文件目录"
             exit 1
           fi
-
-          # 初始化 Capacitor
-          npx @capacitor/cli init "报价单系统" "com.example.quotation" --web-dir www --npm-client npm
-          npm install
-          npx @capacitor/cli add ios
-          npx @capacitor/cli sync
-
-          # 安装 iOS 依赖
+          
+      - name: 初始化Capacitor
+        run: |
+          # 如果已有配置文件则跳过init
+          if [ ! -f "capacitor.config.json" ]; then
+            npx cap init "报价单系统" "com.example.quotation" --web-dir www
+          fi
+          
+          # 添加iOS平台
+          npx cap add ios
+          
+          # 同步项目
+          npx cap sync ios
+          
+      - name: 安装iOS依赖
+        run: |
           cd ios/App
           pod install
           cd ../..
-
-      - name: Build IPA
+          
+      - name: 构建IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
                     -scheme App \
@@ -124,7 +135,7 @@ jobs:
                     -archivePath build/App.xcarchive \
                     -exportOptionsPlist ios/App/exportOptions.plist \
                     -exportPath build/ipa
-
+                    
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
