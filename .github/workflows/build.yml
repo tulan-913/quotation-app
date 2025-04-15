@@ -138,10 +138,10 @@ jobs:
 
       - name: Build Without Team ID
         run: |
-            # 1. 彻底禁用签名（修改工程文件）
-            plutil -replace provisioningStyle -string "Manual" ios/App/App.xcodeproj/project.pbxproj
+            # 1. 仅使用sed修改工程文件（移除plutil命令）
             sed -i '' 's/DEVELOPMENT_TEAM = .*;//' ios/App/App.xcodeproj/project.pbxproj
             sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;//' ios/App/App.xcodeproj/project.pbxproj
+            sed -i '' 's/ProvisioningStyle = .*;/ProvisioningStyle = Manual;/' ios/App/App.xcodeproj/project.pbxproj
         
             # 2. 创建免签名配置
             echo '<?xml version="1.0"?>
@@ -154,12 +154,10 @@ jobs:
                 <string>development</string>
                 <key>signingStyle</key>
                 <string>manual</string>
-                <key>stripSwiftSymbols</key>
-                <true/>
             </dict>
             </plist>' > exportOptions.plist
         
-            # 3. 构建命令（关键参数）
+            # 3. 单次构建+导出（关键修改）
             xcodebuild -workspace ios/App/App.xcworkspace \
                       -scheme App \
                       -configuration Debug \
@@ -169,29 +167,13 @@ jobs:
                       CODE_SIGNING_ALLOWED=NO \
                       DEVELOPMENT_TEAM="" \
                       PROVISIONING_PROFILE="" \
-                      archive || true
+                      archive
         
-            # 4. 导出未签名IPA
             xcodebuild -exportArchive \
                       -archivePath build/App.xcarchive \
                       -exportOptionsPlist exportOptions.plist \
                       -exportPath build/ipa \
                       -allowProvisioningUpdates
-
-      - name: Build IPA
-        timeout-minutes: 30
-        run: |
-          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 2 | head -1)
-          xcodebuild -workspace "$WORKSPACE" \
-                    -scheme App \
-                    -archivePath build/App.xcarchive \
-                    -allowProvisioningUpdates \
-                    archive
-
-          xcodebuild -exportArchive \
-                    -archivePath build/App.xcarchive \
-                    -exportOptionsPlist ios/App/exportOptions.plist \
-                    -exportPath build/ipa
 
       - uses: actions/upload-artifact@v4
         with:
