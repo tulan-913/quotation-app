@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 18
 
       - name: Ensure Config Exists
         run: |
@@ -88,9 +88,12 @@ jobs:
 
       - name: Build Process
         run: |
-          # 1. 清理并重建目录
-          rm -rf www && mkdir -p www
-          [ -d "src" ] && cp -R src/* www/ || { echo "Error: src missing"; exit 1; }
+          # 1. 强制清理环境
+          rm -rf www node_modules/.cache
+    
+          # 2. 重建目录结构
+          mkdir -p www
+          [ -d "src" ] && cp -R src/* www/ || exit 1
 
           # 2. 确保iOS平台存在（关键修复）
           if [ ! -d "ios" ]; then
@@ -98,27 +101,26 @@ jobs:
             npx cap add ios
           fi
 
-          # 3. 版本锁定（解决冲突）
+          # 3. 使用绝对路径执行Capacitor (关键修复)
+          ./node_modules/.bin/cap init "报价单系统" "com.example.quotation" --web-dir www || true
+          
+          # 4. 强制安装指定版本 (绕过npm解析)
           npm install \
-            @capacitor/cli@5 \
-            @capacitor/core@5 \
-            @capacitor/ios@5 \
-            --no-save --prefer-offline --legacy-peer-deps
+            @capacitor/cli@5.7.8 \
+            @capacitor/core@5.7.8 \
+            @capacitor/ios@5.7.8 \
+            --no-save --force --legacy-peer-deps
 
-          # 4. 同步项目
-          npx cap sync
+          # 5. 使用本地CLI执行 (避免npx问题)
+          ./node_modules/.bin/cap add ios
+          ./node_modules/.bin/cap sync
 
-          # 5. 智能进入iOS目录（兼容新旧结构）
-          IOS_DIR="ios"
-          [ -d "ios/App" ] && IOS_DIR="ios/App"
-          cd "$IOS_DIR"
-
-          # 6. 安装依赖（带错误重试）
-          if ! pod install --no-repo-update; then
-            echo "Retrying pod install..."
+          # 6. 处理iOS依赖 (带重试机制)
+          cd ios/App || cd ios
+          pod install --repo-update || {
             pod repo update
-            pod install --no-repo-update || { echo "Pod install failed"; exit 1; }
-          fi
+            pod install
+          }
           cd ../..
 
       - name: Build IPA
