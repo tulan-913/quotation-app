@@ -136,6 +136,36 @@ jobs:
           done
           cd ../..
 
+      - name: Build With Free Certificate
+        run: |
+            # 1. 清理工程设置
+            sed -i '' 's/DEVELOPMENT_TEAM = .*;//' ios/App/App.xcodeproj/project.pbxproj
+        
+            # 2. 构建命令（关键在 -allowProvisioningUpdates）
+            xcodebuild -workspace ios/App/App.xcworkspace \
+                      -scheme App \
+                      -configuration Debug \  # 必须用 Debug 配置
+                      -archivePath build/App.xcarchive \
+                      -allowProvisioningUpdates \
+                      CODE_SIGN_STYLE="Automatic" \
+                      DEVELOPMENT_TEAM="" \
+                      archive
+        
+            # 3. 导出 IPA
+            xcodebuild -exportArchive \
+                      -archivePath build/App.xcarchive \
+                      -exportPath build/ipa \
+                      -exportOptionsPlist <(echo '
+                        <?xml version="1.0"?>
+                        <plist version="1.0">
+                        <dict>
+                            <key>method</key>
+                            <string>development</string>
+                            <key>signingStyle</key>
+                            <string>automatic</string>
+                        </dict>
+                        </plist>')
+
       - name: Build IPA
         timeout-minutes: 30
         run: |
