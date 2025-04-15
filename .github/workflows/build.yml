@@ -1,6 +1,10 @@
 name: Build All Platforms
 on: [push]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
@@ -24,52 +28,85 @@ jobs:
           path: dist/
 
   build-mac:
-    runs-on: macos-13-ventura-xlarge
-    timeout-minutes: 20
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-13, macos-12]  # 双系统后备
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Turbo Build & Notarize
-        env:
-          AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
-        run: |
-          (
-            mkdir -p www && cp -R src/* www/
-            npm ci --no-audit
-            npm run build -- --mac
-          ) &
-          (
-            brew install --quiet --no-quarantine gon
-          ) &
-          wait
+    # ===== 1. 排队检测 =====
+    - name: Check Queue Status
+      id: queue-check
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { data: runs } = await github.rest.actions.listWorkflowRuns({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'build.yml',
+            status: 'queued',
+            per_page: 5
+          });
           
-          echo '{
-            "source": ["dist/mac/*.app"],
-            "bundle_id": "com.example.quotation",
-            "apple_id": {
-              "username": "2441686096@qq.com",
-              "password": "@env:AC_PASSWORD"
-            },
-            "notarize": {
-              "timeout": 1200
-              "skip_wait": true
-            }
-          }' > gon.json
-          
-          gon --fast gon.json
-          
-          xattr -cr dist/mac/*.app &
-          spctl -a -t exec -vv dist/mac/*.app &
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-build
-          path: dist/
-          compression-level: 0
+          if (runs.length > 3) {  # 如果队列过长
+            console.log('检测到排队拥堵，触发自动重试策略');
+            await github.rest.actions.reRunWorkflowFailedJobs({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            return 'retry';
+          }
+          return 'continue';
+    
+    # ===== 2. 正常构建流程 =====
+    - name: Setup Node
+      if: steps.queue-check.outputs.result == 'continue'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+    
+    - name: Build App
+      if: steps.queue-check.outputs.result == 'continue'
+      run: |
+        mkdir -p www
+        cp -R src/* www/
+        npm ci
+        npm run build -- --mac
+        
+    # ===== 3. 公证处理 =====  
+    - name: Notarize
+      if: steps.queue-check.outputs.result == 'continue'
+      env:
+        AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+      run: |
+        cat <<EOF > gon.json
+        {
+          "source": ["dist/mac/*.app"],
+          "bundle_id": "com.example.quotation",
+          "apple_id": {
+            "username": "2441686096@qq.com",
+            "password": "@env:AC_PASSWORD"
+          }
+        }
+        EOF
+        brew install gon
+        gon --fast gon.json
+        
+    # ===== 4. 自动重试触发器 =====
+    - name: Trigger Retry
+      if: failure() || steps.queue-check.outputs.result == 'retry'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          await new Promise(resolve => setTimeout(resolve, 300000)); // 等待5分钟
+          await github.rest.actions.reRunWorkflowFailedJobs({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.runId
+          });
 
   build-android:
     runs-on: ubuntu-latest
