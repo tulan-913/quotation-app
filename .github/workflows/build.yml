@@ -73,38 +73,54 @@ jobs:
         with:
           node-version: 20
       
-      # 1. 确保配置文件和目录结构
-      - name: Setup Environment
+      # 1. 基础环境准备
+      - name: Prepare Environment
         run: |
-          # 生成必要配置文件
+          # 确保目录存在
+          mkdir -p www
+          [ "$(ls -A src)" ] && cp -R src/* www/ || echo "src目录为空，跳过复制"
+          
+          # 创建完整的capacitor配置
           echo '{
             "appId": "com.example.quotation",
             "appName": "报价单系统",
             "webDir": "www",
-            "bundledWebRuntime": false
+            "bundledWebRuntime": false,
+            "plugins": {
+              "SplashScreen": {
+                "launchShowDuration": 3000,
+                "launchAutoHide": true,
+                "backgroundColor": "#1a5276"
+              }
+            }
           }' > capacitor.config.json
           
-          # 创建www目录（兼容空目录情况）
-          mkdir -p www
-          [ "$(ls -A src)" ] && cp -R src/* www/ || echo "src目录为空，跳过复制"
-          
-          # 验证目录结构
-          echo "项目结构："
+          # 验证环境
+          echo "当前目录结构："
           ls -la
-          echo "www内容："
+          echo "www目录内容："
           ls -la www/
+          echo "capacitor.config.json内容："
+          cat capacitor.config.json
       
-      # 2. 构建流程
-      - name: Build Process
+      # 2. 安装和同步
+      - name: Install & Sync
         run: |
-          # 初始化Capacitor（强制模式）
-          npx cap init --force --web-dir www --npm-client npm
-          
-          # 添加iOS平台
+          npm install
           npx cap add ios
+          npx cap sync
           
-          # 安装iOS依赖
+          # 手动创建Podfile如果不存在
           cd ios/App
+          if [ ! -f "Podfile" ]; then
+            pod init
+            echo "platform :ios, '13.0'" > Podfile
+            echo "target 'App' do" >> Podfile
+            echo "  use_frameworks!" >> Podfile
+            echo "  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'" >> Podfile
+            echo "  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'" >> Podfile
+            echo "end" >> Podfile
+          fi
           pod install
           cd ../..
       
