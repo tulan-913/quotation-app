@@ -144,7 +144,7 @@ jobs:
             # 2. 构建命令（关键在 -allowProvisioningUpdates）
             xcodebuild -workspace ios/App/App.xcworkspace \
                       -scheme App \
-                      -configuration Debug \  # 必须用 Debug 配置
+                      -configuration Debug \
                       -archivePath build/App.xcarchive \
                       -allowProvisioningUpdates \
                       CODE_SIGN_STYLE="Automatic" \
