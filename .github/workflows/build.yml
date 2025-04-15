@@ -105,7 +105,7 @@ jobs:
           sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "";//g' App.xcodeproj/project.pbxproj
           cd ../..
       
-      # 4. 构建未签名的 IPA（不触发签名）
+      # 4. 构建未签名的IPA （不触发签名）
       - name: Build Unsigned IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
