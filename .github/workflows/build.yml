@@ -136,35 +136,47 @@ jobs:
           done
           cd ../..
 
-      - name: Build With Free Certificate
+      - name: Build Without Team ID
         run: |
-            # 1. 清理工程设置
+            # 1. 彻底禁用签名（修改工程文件）
+            plutil -replace provisioningStyle -string "Manual" ios/App/App.xcodeproj/project.pbxproj
             sed -i '' 's/DEVELOPMENT_TEAM = .*;//' ios/App/App.xcodeproj/project.pbxproj
+            sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;//' ios/App/App.xcodeproj/project.pbxproj
         
-            # 2. 构建命令（关键在 -allowProvisioningUpdates）
+            # 2. 创建免签名配置
+            echo '<?xml version="1.0"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>compileBitcode</key>
+                <false/>
+                <key>method</key>
+                <string>development</string>
+                <key>signingStyle</key>
+                <string>manual</string>
+                <key>stripSwiftSymbols</key>
+                <true/>
+            </dict>
+            </plist>' > exportOptions.plist
+        
+            # 3. 构建命令（关键参数）
             xcodebuild -workspace ios/App/App.xcworkspace \
                       -scheme App \
                       -configuration Debug \
                       -archivePath build/App.xcarchive \
-                      -allowProvisioningUpdates \
-                      CODE_SIGN_STYLE="Automatic" \
+                      CODE_SIGN_IDENTITY="" \
+                      CODE_SIGNING_REQUIRED=NO \
+                      CODE_SIGNING_ALLOWED=NO \
                       DEVELOPMENT_TEAM="" \
-                      archive
+                      PROVISIONING_PROFILE="" \
+                      archive || true
         
-            # 3. 导出 IPA
+            # 4. 导出未签名IPA
             xcodebuild -exportArchive \
                       -archivePath build/App.xcarchive \
+                      -exportOptionsPlist exportOptions.plist \
                       -exportPath build/ipa \
-                      -exportOptionsPlist <(echo '
-                        <?xml version="1.0"?>
-                        <plist version="1.0">
-                        <dict>
-                            <key>method</key>
-                            <string>development</string>
-                            <key>signingStyle</key>
-                            <string>automatic</string>
-                        </dict>
-                        </plist>')
+                      -allowProvisioningUpdates
 
       - name: Build IPA
         timeout-minutes: 30
