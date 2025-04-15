@@ -103,10 +103,10 @@ jobs:
           fi
 
           # 初始化 Capacitor
-          npx cap init "报价单系统" "com.example.quotation" --web-dir www --npm-client npm
+          npx @capacitor/cli init "报价单系统" "com.example.quotation" --web-dir www --npm-client npm
           npm install
-          npx cap add ios
-          npx cap sync
+          npx @capacitor/cli add ios
+          npx @capacitor/cli sync
 
           # 安装 iOS 依赖
           cd ios/App
