@@ -88,9 +88,11 @@ jobs:
 
       - name: Build Process
         run: |
-          # 使用 rimraf 清理 www（跨平台）
-          npx rimraf www
-          mkdir www
+          # 清理 www（macOS 兼容）
+          if [ -d "www" ]; then
+            m -rf www
+          fi
+          mkdir -p www
 
           # 复制源文件
           if [ -d "src" ]; then
