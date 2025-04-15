@@ -103,14 +103,13 @@ jobs:
           fi
 
           # 初始化 Capacitor
-          npx @capacitor/cli init "报价单系统" "com.example.quotation" --web-dir www --npm-client npm
-          npm install
-          npx @capacitor/cli add ios
-          npx @capacitor/cli sync
+          npx cap init "报价单系统" "com.example.quotation" --web-dir www 2>/dev/null || true
+          npm install @capacitor/cli@7 @capacitor/ios@7 --no-save
+          npx cap sync
 
           # 安装 iOS 依赖
           cd ios/App
-          pod install
+          pod install --no-repo-update
           cd ../..
 
       - name: Build IPA
