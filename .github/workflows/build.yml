@@ -66,13 +66,13 @@ jobs:
 
 
   build-ios:
-    runs-on: macos-latest
+    runs-on: macos-latest  # 必须使用 macOS，因为 iOS 构建需要 Xcode
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      
+
       - name: Ensure Config Exists
         run: |
           if [ ! -f "capacitor.config.json" ]; then
@@ -86,33 +86,31 @@ jobs:
           fi
           cat capacitor.config.json
 
-      # 1. 验证关键文件
-      - name: Verify Config Files
-        run: |
-          [ -f "capacitor.config.json" ] || { echo "Error: capacitor.config.json missing"; exit 1; }
-          [ -f "src/index.html" ] || { echo "Error: src/index.html missing"; exit 1; }
-      
-      # 2. 构建流程
       - name: Build Process
         run: |
-          # 清理并重建 www
-          rm www && mkdir -p www
-          cp -R src/* www/ || true
-          
-          # 初始化 Capacitor（关键修复！）
-          npx cap init --web-dir www --npm-client npm
-          
-          # 同步平台
+          # 使用 rimraf 清理 www（跨平台）
+          npx rimraf www
+          mkdir www
+
+          # 复制源文件
+          if [ -d "src" ]; then
+            cp -R src/* www/
+          else
+            echo "Error: src directory not found"
+            exit 1
+          fi
+
+          # 初始化 Capacitor
+          npx cap init "报价单系统" "com.example.quotation" --web-dir www --npm-client npm
           npm install
           npx cap add ios
           npx cap sync
-          
+
           # 安装 iOS 依赖
           cd ios/App
           pod install
           cd ../..
-      
-      # 3. 构建 IPA
+
       - name: Build IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
@@ -124,9 +122,8 @@ jobs:
                     -archivePath build/App.xcarchive \
                     -exportOptionsPlist ios/App/exportOptions.plist \
                     -exportPath build/ipa
-      
+
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
           path: ios/build/ipa
-      
