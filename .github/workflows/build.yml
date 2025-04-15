@@ -112,6 +112,7 @@ jobs:
                     -scheme App \
                     -configuration Release \
                     -archivePath build/App.xcarchive \
+                    -destination "generic/platform=iOS" \
                     CODE_SIGNING_ALLOWED=NO \
                     CODE_SIGNING_REQUIRED=NO \
                     archive
