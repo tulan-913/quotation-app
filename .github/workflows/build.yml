@@ -66,55 +66,54 @@ jobs:
 
 
   build-ios:
-    runs-on: macos-latest  # 必须使用 macOS（Xcode 依赖）
+    runs-on: macos-latest  # 必须使用 macOS，因为 iOS 构建需要 Xcode
     steps:
-      - uses: actions/checkout@v4  # 拉取代码
-
-      - name: 设置 Node.js 环境
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: 安装依赖
+      - name: Ensure Config Exists
         run: |
-          npm install
-          npm install -g @capacitor/cli  # 全局安装 CLI（避免 npx 问题）
-
-      - name: 构建前端（如果有）
-        run: |
-          if [ -f "package.json" ] && grep -q '"build"' package.json; then
-            npm run build  # 执行前端构建（如 Vue/React 项目）
+          if [ ! -f "capacitor.config.json" ]; then
+            echo '{
+              "appId": "com.example.quotation",
+              "appName": "报价单系统",
+              "webDir": "www",
+              "bundledWebRuntime": false
+            }' > capacitor.config.json
+            echo "Generated capacitor.config.json"
           fi
+          cat capacitor.config.json
 
-      - name: 准备 Capacitor 目录
+      - name: Build Process
         run: |
-          rm -rf www || true
+          # 清理 www（macOS 兼容）
+          if [ -d "www" ]; then
+            rm -rf www
+          fi
           mkdir -p www
-          # 优先复制 dist/（构建后），其次 src/（源代码）
-          if [ -d "dist" ]; then
-            cp -R dist/* www/
-          elif [ -d "src" ]; then
+
+          # 复制源文件
+          if [ -d "src" ]; then
             cp -R src/* www/
           else
-            echo "错误：找不到前端代码目录（dist 或 src）"
+            echo "Error: src directory not found"
             exit 1
           fi
 
-      - name: 初始化 Capacitor
-        run: |
-          if [ ! -f "capacitor.config.json" ]; then
-            npx cap init "报价单系统" "com.example.quotation" --web-dir www
-          fi
-          npx cap add ios  # 添加 iOS 平台
-          npx cap sync ios  # 同步依赖
+          # 初始化 Capacitor
+          npx @capacitor/cli init "报价单系统" "com.example.quotation" --web-dir www --npm-client npm
+          npm install
+          npx @capacitor/cli add ios
+          npx @capacitor/cli sync
 
-      - name: 安装 iOS 依赖 (CocoaPods)
-        run: |
+          # 安装 iOS 依赖
           cd ios/App
-          pod install --repo-update  # 自动更新仓库
+          pod install
           cd ../..
 
-      - name: 构建 IPA
+      - name: Build IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
                     -scheme App \
@@ -126,8 +125,7 @@ jobs:
                     -exportOptionsPlist ios/App/exportOptions.plist \
                     -exportPath build/ipa
 
-      - name: 上传 IPA 产物
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
+          name: ios-build
           path: ios/build/ipa
