@@ -73,60 +73,60 @@ jobs:
         with:
           node-version: 20
       
-      # 1. 准备环境
-      - name: Prepare Environment
+      - name: Ensure Config Exists
         run: |
-          mkdir -p www
-          cp -R src/* www/ || echo "跳过复制（src可能为空）"
-          echo '{
-            "appId": "com.example.quotation",
-            "appName": "报价单系统",
-            "webDir": "www",
-            "bundledWebRuntime": false
-          }' > capacitor.config.json
+          if [ ! -f "capacitor.config.json" ]; then
+            echo '{
+              "appId": "com.example.quotation",
+              "appName": "报价单系统",
+              "webDir": "www",
+              "bundledWebRuntime": false
+            }' > capacitor.config.json
+            echo "Generated capacitor.config.json"
+          fi
+          cat capacitor.config.json
+
+      # 1. 验证关键文件
+      - name: Verify Config Files
+        run: |
+          [ -f "capacitor.config.json" ] || { echo "Error: capacitor.config.json missing"; exit 1; }
+          [ -f "src/index.html" ] || { echo "Error: src/index.html missing"; exit 1; }
       
-      # 2. 安装依赖 & 同步 iOS 项目
-      - name: Install & Sync
+      # 2. 构建流程
+      - name: Build Process
         run: |
+          # 清理并重建 www
+          rm www && mkdir -p www
+          cp -R src/* www/ || true
+          
+          # 初始化 Capacitor（关键修复！）
+          npx cap init --web-dir www --npm-client npm
+          
+          # 同步平台
           npm install
           npx cap add ios
           npx cap sync
+          
+          # 安装 iOS 依赖
           cd ios/App
           pod install
           cd ../..
       
-      # 3. 禁用代码签名（关键步骤！）
-      - name: Disable Code Signing
-        run: |
-          cd ios/App
-          # 直接修改 Xcode 项目配置，禁用签名
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' App.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGNING_REQUIRED = YES/CODE_SIGNING_REQUIRED = NO/g' App.xcodeproj/project.pbxproj
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "";//g' App.xcodeproj/project.pbxproj
-          cd ../..
-      
-      # 4. 构建未签名的IPA （不触发签名）
-      - name: Build Unsigned IPA
+      # 3. 构建 IPA
+      - name: Build IPA
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
                     -scheme App \
                     -configuration Release \
                     -archivePath build/App.xcarchive \
-                    -destination "generic/platform=iOS" \
-                    CODE_SIGNING_ALLOWED=NO \
-                    CODE_SIGNING_REQUIRED=NO \
                     archive
-          
           xcodebuild -exportArchive \
                     -archivePath build/App.xcarchive \
                     -exportOptionsPlist ios/App/exportOptions.plist \
-                    -exportPath build/ipa \
-                    CODE_SIGNING_ALLOWED=NO \
-                    CODE_SIGNING_REQUIRED=NO
+                    -exportPath build/ipa
       
-      # 5. 上传未签名的 IPA（供本地签名）
       - uses: actions/upload-artifact@v4
         with:
-          name: ios-unsigned-ipa
+          name: ios-build
           path: ios/build/ipa
       
