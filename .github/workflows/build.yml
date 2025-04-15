@@ -104,7 +104,11 @@ jobs:
 
           # 初始化 Capacitor
           npx cap init "报价单系统" "com.example.quotation" --web-dir www 2>/dev/null || true
-          npm install @capacitor/cli@7 @capacitor/ios@7 --no-save
+          npm install \
+            @capacitor/cli@5 \
+            @capacitor/core@5 \
+            @capacitor/ios@5 \
+            --no-save --prefer-offline
           npx cap sync
 
           # 安装 iOS 依赖
