@@ -72,6 +72,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
 
       - name: Ensure Config Exists
         run: |
@@ -82,63 +84,72 @@ jobs:
               "webDir": "www",
               "bundledWebRuntime": false
             }' > capacitor.config.json
-            echo "Generated capacitor.config.json"
           fi
-          cat capacitor.config.json
 
+      - name: Setup Environment
+        run: |
+          # 安装系统级必要工具
+          brew install cocoapods || true
+          sudo gem install cocoapods -v 1.11.3
+      
       - name: Build Process
         run: |
-          # 1. 强制清理环境
-          rm -rf www node_modules/.cache
+          # 1. 彻底清理环境
+          rm -rf www ios/android node_modules/.cache
     
           # 2. 重建目录结构
           mkdir -p www
-          [ -d "src" ] && cp -R src/* www/ || exit 1
+          [ -d "src" ] && cp -R src/* www/ || { echo "Error: src directory missing"; exit 1; }
 
-          # 2. 确保iOS平台存在（关键修复）
-          if [ ! -d "ios" ]; then
-            echo "Adding iOS platform..."
-            npx cap add ios
-          fi
-
-          # 3. 使用绝对路径执行Capacitor (关键修复)
-          ./node_modules/.bin/cap init "报价单系统" "com.example.quotation" --web-dir www || true
-          
-          # 4. 强制安装指定版本 (绕过npm解析)
+          # 3. 初始化前确保必要依赖存在 (关键修复)
+          npm install -g @capacitor/cli@5.7.8
           npm install \
-            @capacitor/cli@5.7.8 \
             @capacitor/core@5.7.8 \
             @capacitor/ios@5.7.8 \
-            --no-save --force --legacy-peer-deps
+            --save-exact --no-package-lock --force
 
-          # 5. 使用本地CLI执行 (避免npx问题)
-          ./node_modules/.bin/cap add ios
-          ./node_modules/.bin/cap sync
+          # 4. 双重初始化机制
+          if [ ! -f "capacitor.config.json" ]; then
+            npx cap init "报价单系统" "com.example.quotation" --web-dir www
+          else
+            npx cap sync
+          fi
 
-          # 6. 处理iOS依赖 (带重试机制)
+          # 5. 平台添加安全机制
+          if [ ! -d "ios" ]; then
+            echo "Adding iOS platform with retry..."
+            npx cap add ios || {
+              sleep 5
+              npx cap add ios || exit 1
+            }
+          fi
+
+          # 6. 最终同步
+          npx cap sync
+
+          # 7. 智能Pod安装 (带三重重试)
           cd ios/App || cd ios
-          pod install --repo-update || {
-            pod repo update
-            pod install
-          }
+          for i in {1..3}; do
+            pod install --repo-update && break
+            sleep $((i*2))
+            [ $i -eq 3 ] && exit 1
+          done
           cd ../..
 
       - name: Build IPA
+        timeout-minutes: 30
         run: |
-          # 确定workspace路径（兼容新旧结构）
-          WORKSPACE_PATH="ios/App/App.xcworkspace"
-          [ ! -d "$WORKSPACE_PATH" ] && WORKSPACE_PATH="ios/App.xcworkspace"
-          
-          xcodebuild -workspace "$WORKSPACE_PATH" \
+          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 2 | head -1)
+          xcodebuild -workspace "$WORKSPACE" \
                     -scheme App \
-                    -configuration Release \
                     -archivePath build/App.xcarchive \
-                    archive || { echo "Archive failed"; exit 1; }
-                    
+                    -allowProvisioningUpdates \
+                    archive
+
           xcodebuild -exportArchive \
                     -archivePath build/App.xcarchive \
                     -exportOptionsPlist ios/App/exportOptions.plist \
-                    -exportPath build/ipa || { echo "Export failed"; exit 1; }
+                    -exportPath build/ipa
 
       - uses: actions/upload-artifact@v4
         with:
