@@ -66,7 +66,7 @@ jobs:
 
 
   build-ios:
-    runs-on: macos-latest  # 必须使用 macOS，因为 iOS 构建需要 Xcode
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -88,47 +88,57 @@ jobs:
 
       - name: Build Process
         run: |
-          # 清理 www（macOS 兼容）
-          if [ -d "www" ]; then
-            rm -rf www
-          fi
-          mkdir -p www
+          # 1. 清理并重建目录
+          rm -rf www && mkdir -p www
+          [ -d "src" ] && cp -R src/* www/ || { echo "Error: src missing"; exit 1; }
 
-          # 复制源文件
-          if [ -d "src" ]; then
-            cp -R src/* www/
-          else
-            echo "Error: src directory not found"
-            exit 1
+          # 2. 确保iOS平台存在（关键修复）
+          if [ ! -d "ios" ]; then
+            echo "Adding iOS platform..."
+            npx cap add ios
           fi
 
-          # 初始化 Capacitor
-          npx cap init "报价单系统" "com.example.quotation" --web-dir www 2>/dev/null || true
+          # 3. 版本锁定（解决冲突）
           npm install \
             @capacitor/cli@5 \
             @capacitor/core@5 \
             @capacitor/ios@5 \
-            --no-save --prefer-offline
+            --no-save --prefer-offline --legacy-peer-deps
+
+          # 4. 同步项目
           npx cap sync
 
-          # 安装 iOS 依赖
-          cd ios/App
-          pod install --no-repo-update
+          # 5. 智能进入iOS目录（兼容新旧结构）
+          IOS_DIR="ios"
+          [ -d "ios/App" ] && IOS_DIR="ios/App"
+          cd "$IOS_DIR"
+
+          # 6. 安装依赖（带错误重试）
+          if ! pod install --no-repo-update; then
+            echo "Retrying pod install..."
+            pod repo update
+            pod install --no-repo-update || { echo "Pod install failed"; exit 1; }
+          fi
           cd ../..
 
       - name: Build IPA
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          # 确定workspace路径（兼容新旧结构）
+          WORKSPACE_PATH="ios/App/App.xcworkspace"
+          [ ! -d "$WORKSPACE_PATH" ] && WORKSPACE_PATH="ios/App.xcworkspace"
+          
+          xcodebuild -workspace "$WORKSPACE_PATH" \
                     -scheme App \
                     -configuration Release \
                     -archivePath build/App.xcarchive \
-                    archive
+                    archive || { echo "Archive failed"; exit 1; }
+                    
           xcodebuild -exportArchive \
                     -archivePath build/App.xcarchive \
                     -exportOptionsPlist ios/App/exportOptions.plist \
-                    -exportPath build/ipa
+                    -exportPath build/ipa || { echo "Export failed"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
-          path: ios/build/ipa
+          path: build/ipa  # 修正为实际输出路径
