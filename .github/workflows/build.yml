@@ -90,7 +90,7 @@ jobs:
         run: |
           # 清理 www（macOS 兼容）
           if [ -d "www" ]; then
-            m -rf www
+            rm -rf www
           fi
           mkdir -p www
 
