@@ -142,29 +142,27 @@ jobs:
             rm -rf build Payload ios/Pods ios/Podfile.lock
             mkdir -p build/ipa
         
+            # 2. 确保Capacitor安装正确
             if [ ! -d "node_modules/@capacitor/ios" ]; then
-              echo "错误：Capacitor iOS 目录不存在！"
+              echo "安装Capacitor iOS..."
               npm install @capacitor/ios
             fi
-
-            # 2. 检查并修复项目结构（关键步骤）
-            if [ ! -f "ios/App/App.xcodeproj" ]; then
-              echo "修复项目结构..."
-              mv ios/App ios/AppTemp
-              mkdir -p ios/App
-              mv ios/AppTemp ios/App/App
-              cp -r ios/App/App/App.xcodeproj ios/App/
-              cp -r ios/App/App/App.xcworkspace ios/App/
+        
+            # 3. 修复项目结构（关键步骤）
+            if [ ! -f "ios/App.xcodeproj" ] && [ -f "ios/App/App.xcodeproj" ]; then
+              echo "标准化项目结构..."
+              mv ios/App/App.xcodeproj ios/
+              mv ios/App/App.xcworkspace ios/
             fi
         
-            # 3. 创建正确的Podfile
+            # 4. 创建精确路径的Podfile
             echo "platform :ios, '17.0'
-            project 'App/App.xcodeproj'
-            workspace 'App/App.xcworkspace'
+            project 'App.xcodeproj'
+            workspace 'App.xcworkspace'
             target 'App' do
               use_frameworks!
-              pod 'Capacitor', :path => '../../../node_modules/@capacitor/ios'
-              pod 'CapacitorCordova', :path => '../../../node_modules/@capacitor/ios'
+              pod 'Capacitor', :path => './node_modules/@capacitor/ios'
+              pod 'CapacitorCordova', :path => './node_modules/@capacitor/ios'
             end
         
             post_install do |installer|
@@ -176,22 +174,21 @@ jobs:
               end
             end" > ios/Podfile
         
-            # 4. 安装Pods（带路径验证）
+            # 5. 安装Pods（带绝对路径验证）
             cd ios
-            echo "当前目录：$(pwd)"
-            echo "Podfile内容："
-            cat Podfile
-            echo "Capacitor路径检查："
-            ls -l ../../node_modules/@capacitor/ios/Capacitor.podspec || {
-              echo "Capacitor.podspec 不存在！"
-              npm list @capacitor/ios
+            echo "当前工作目录：$(pwd)"
+            echo "验证Capacitor路径："
+            ls -l ../node_modules/@capacitor/ios/Capacitor.podspec || {
+              echo "错误：Capacitor路径不正确！"
+              echo "实际路径内容："
+              ls -l ../node_modules/@capacitor
               exit 1
             }
             pod install --repo-update
             cd ..
         
-            # 5. 构建命令（使用修正后的路径）
-            xcodebuild -workspace ios/App/App.xcworkspace \
+            # 6. 构建命令
+            xcodebuild -workspace ios/App.xcworkspace \
                       -scheme App \
                       -configuration Debug \
                       -sdk iphoneos \
@@ -202,19 +199,11 @@ jobs:
                       build \
                       -derivedDataPath build
         
-            # 6. 手动打包IPA（带增强错误检查）
-            APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" -print -quit)
-            if [ -z "$APP_PATH" ]; then
-              echo "错误：找不到.app文件！搜索路径："
-              find build -name "*.app"
-              exit 1
-            fi
+            # 7. 打包IPA（带完整路径处理）
+            APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app")
             mkdir -p Payload
             cp -r "$APP_PATH" Payload/
-            (cd Payload && zip -qr ../build/ipa/App.ipa .) || {
-              echo "IPA打包失败！"
-              exit 1
-            }
+            (cd Payload && zip -qr "$PWD/build/ipa/App.ipa" .)
             rm -rf Payload
 
       - uses: actions/upload-artifact@v4
