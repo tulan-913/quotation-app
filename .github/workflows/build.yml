@@ -139,31 +139,41 @@ jobs:
       - name: Build Unsigned IPA
         run: |
             # 1. 清理并创建目录
-            rm -rf build Payload
+            rm -rf build Payload ios/Pods ios/Podfile.lock
             mkdir -p build/ipa
         
-            # 2. 彻底禁用所有签名（包括Pods）
-            sed -i '' 's/DEVELOPMENT_TEAM = .*;//' ios/App/App.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGN_STYLE = .*;/CODE_SIGN_STYLE = Manual;/' ios/App/App.xcodeproj/project.pbxproj
-            sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;//' ios/App/App.xcodeproj/project.pbxproj
-            
-            # 关键修改：禁用Pods的签名
-            echo "post_install do |installer|
+            # 2. 确保有正确的 Podfile（关键修复）
+            echo "platform :ios, '17.0'
+            workspace '../App.xcworkspace'
+            target 'App' do
+              use_frameworks!
+              pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+              pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+              # 添加其他需要的pod
+            end
+        
+            post_install do |installer|
               installer.pods_project.targets.each do |target|
                 target.build_configurations.each do |config|
                   config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
                   config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+                  config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
+                  config.build_settings['CODE_SIGN_IDENTITY'] = ''
                 end
               end
-            end" >> ios/Podfile
+            end" > ios/Podfile
         
-            # 3. 重新安装Pods
+            # 3. 安装Pods（带重试机制）
             cd ios
-            pod install --repo-update
+            pod install --repo-update || {
+              echo "第一次pod install失败，尝试修复..."
+              pod repo update
+              pod install
+            }
             cd ..
         
-            # 4. 使用xcodebuild构建（不签名）
-            xcodebuild -workspace ios/App/App.xcworkspace \
+            # 4. 构建命令（完整参数）
+            xcodebuild -workspace ios/App.xcworkspace \
                       -scheme App \
                       -configuration Debug \
                       -sdk iphoneos \
@@ -176,14 +186,24 @@ jobs:
                       build \
                       -derivedDataPath build
         
-            # 5. 手动打包IPA
-            APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app")
+            # 5. 手动打包IPA（带错误检查）
+            APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" -print -quit)
+            if [ -z "$APP_PATH" ]; then
+              echo "错误：找不到.app文件！"
+              find build -name "*.app"
+              exit 1
+            fi
+        
             mkdir Payload
             cp -r "$APP_PATH" Payload/
             (cd Payload && zip -qr ../build/ipa/App.ipa .)
             rm -rf Payload
         
             # 6. 验证输出
+            if [ ! -f "build/ipa/App.ipa" ]; then
+              echo "错误：IPA创建失败！"
+              exit 1
+            fi
             ls -lh build/ipa/App.ipa
 
       - uses: actions/upload-artifact@v4
