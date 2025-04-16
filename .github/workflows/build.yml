@@ -148,22 +148,26 @@ jobs:
 
       - name: Build Unsigned IPA
         run: |
-              # 1. 清理并创建目录
+              # 1. 清理环境
               rm -rf build Payload ios/Pods ios/Podfile.lock
               mkdir -p build/ipa
           
-              # 2. 确认项目结构（适配您的实际情况）
-              echo "当前项目结构："
-              find ios -name "*.xcodeproj"
-              
-              # 3. 创建正确的Podfile（精确匹配您的结构）
+              # 2. 验证项目结构
+              echo "项目根目录：$(pwd)"
+              echo "Capacitor路径验证："
+              ls -l node_modules/@capacitor/ios/Capacitor.podspec || {
+                echo "错误：Capacitor未正确安装"
+                npm install @capacitor/ios
+              }
+          
+              # 3. 创建精确的Podfile（关键修复）
               echo "platform :ios, '17.0'
               project 'App/App.xcodeproj'
               workspace 'App/App.xcworkspace'
               target 'App' do
                 use_frameworks!
-                pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-                pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+                pod 'Capacitor', :path => '$(pwd)/node_modules/@capacitor/ios'
+                pod 'CapacitorCordova', :path => '$(pwd)/node_modules/@capacitor/ios'
               end
           
               post_install do |installer|
@@ -175,24 +179,20 @@ jobs:
                 end
               end" > ios/Podfile
           
-              # 4. 安装Pods（带完整路径输出）
+              # 4. 安装Pods（绝对路径方案）
               cd ios
-              echo "当前目录：$(pwd)"
-              echo "Podfile路径：$(pwd)/Podfile"
-              echo "项目文件检查："
-              ls -l App/App.xcodeproj || {
-                echo "Xcode项目文件验证失败！"
+              echo "当前工作目录：$(pwd)"
+              echo "Podfile内容："
+              cat Podfile
+              echo "Capacitor绝对路径：$(pwd)/../node_modules/@capacitor/ios"
+              ls -l ../node_modules/@capacitor/ios/Capacitor.podspec || {
+                echo "错误：Capacitor.podspec不存在！"
                 exit 1
               }
-              pod install --repo-update || {
-                echo "第一次pod install失败，尝试修复..."
-                pod deintegrate
-                pod repo update
-                pod install || {
-                  echo "最终pod install失败"
-                  exit 1
-                }
-              }
+              
+              # 彻底清理后安装
+              pod deintegrate App/App.xcodeproj
+              pod install --repo-update
               cd ..
           
               # 5. 构建命令
@@ -208,29 +208,11 @@ jobs:
                         -derivedDataPath build
           
               # 6. 打包IPA
-              APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" -print -quit)
-              if [ -z "$APP_PATH" ]; then
-                echo "错误：找不到.app文件！"
-                find build -name "*.app"
-                exit 1
-              fi
-              mkdir -p Payload
+              APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app")
+              mkdir Payload
               cp -r "$APP_PATH" Payload/
-              (cd Payload && zip -qr ../build/ipa/App.ipa .) || {
-                echo "IPA打包失败！"
-                exit 1
-              }
+              (cd Payload && zip -qr ../build/ipa/App.ipa .)
               rm -rf Payload
-              echo "IPA构建成功！路径：build/ipa/App.ipa"
-    
-      - name: Final Status
-        run: |
-            if [ $? -eq 0 ]; then
-              echo "::notice title=Success::✔ 所有步骤已完成"
-            else
-              echo "::error title=Failed::❌ 构建过程中出错"
-              exit 1
-            fi
 
       - uses: actions/upload-artifact@v4
         with:
