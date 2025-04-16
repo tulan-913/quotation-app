@@ -222,6 +222,15 @@ jobs:
               }
               rm -rf Payload
               echo "IPA构建成功！路径：build/ipa/App.ipa"
+    
+      - name: Final Status
+        run: |
+            if [ $? -eq 0 ]; then
+              echo "::notice title=Success::✔ 所有步骤已完成"
+            else
+              echo "::error title=Failed::❌ 构建过程中出错"
+              exit 1
+            fi
 
       - uses: actions/upload-artifact@v4
         with:
