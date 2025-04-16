@@ -142,14 +142,14 @@ jobs:
             rm -rf build Payload ios/Pods ios/Podfile.lock
             mkdir -p build/ipa
         
-            # 2. 确保有正确的 Podfile（关键修复）
+            # 2. 创建正确的 Podfile（关键修复）
             echo "platform :ios, '17.0'
-            workspace '../App.xcworkspace'
+            project 'App.xcodeproj'
+            workspace 'App.xcworkspace'
             target 'App' do
               use_frameworks!
               pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
               pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-              # 添加其他需要的pod
             end
         
             post_install do |installer|
@@ -159,20 +159,37 @@ jobs:
                   config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
                   config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
                   config.build_settings['CODE_SIGN_IDENTITY'] = ''
+                  config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = ''
                 end
+              end
+              installer.pods_project.build_configurations.each do |config|
+                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
               end
             end" > ios/Podfile
         
-            # 3. 安装Pods（带重试机制）
+            # 3. 安装Pods（带路径检查）
             cd ios
+            if [ ! -f "App.xcodeproj" ]; then
+              echo "错误：App.xcodeproj 不存在！当前内容："
+              ls -la
+              exit 1
+            fi
             pod install --repo-update || {
-              echo "第一次pod install失败，尝试修复..."
+              echo "Pod安装失败，尝试修复..."
               pod repo update
-              pod install
+              pod install || {
+                echo "最终Pod安装失败，请检查Podfile"
+                exit 1
+              }
             }
             cd ..
         
-            # 4. 构建命令（完整参数）
+            # 4. 构建命令（带路径验证）
+            if [ ! -d "ios/App.xcworkspace" ]; then
+              echo "错误：App.xcworkspace 不存在！"
+              find ios -name "*.xcworkspace"
+              exit 1
+            fi
             xcodebuild -workspace ios/App.xcworkspace \
                       -scheme App \
                       -configuration Debug \
@@ -186,24 +203,24 @@ jobs:
                       build \
                       -derivedDataPath build
         
-            # 5. 手动打包IPA（带错误检查）
+            # 5. 打包IPA（带完整路径处理）
             APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" -print -quit)
             if [ -z "$APP_PATH" ]; then
-              echo "错误：找不到.app文件！"
+              echo "错误：找不到.app文件！搜索路径："
               find build -name "*.app"
               exit 1
             fi
-        
-            mkdir Payload
+            mkdir -p Payload
             cp -r "$APP_PATH" Payload/
-            (cd Payload && zip -qr ../build/ipa/App.ipa .)
+            (cd Payload && zip -qr "$PWD/build/ipa/App.ipa" .)
             rm -rf Payload
         
-            # 6. 验证输出
+            # 6. 最终验证
             if [ ! -f "build/ipa/App.ipa" ]; then
               echo "错误：IPA创建失败！"
               exit 1
             fi
+            echo "构建成功！IPA路径："
             ls -lh build/ipa/App.ipa
 
       - uses: actions/upload-artifact@v4
