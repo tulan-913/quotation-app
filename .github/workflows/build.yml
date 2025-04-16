@@ -28,43 +28,55 @@ jobs:
           path: dist/
 
   build-mac:
-    runs-on: macos-13-xlarge
+    runs-on: macos-12 # 指定 macOS Monterey 确保稳定性
     steps:
       - uses: actions/checkout@v4
-      
-      # 关键修复：强制创建 www 目录并复制文件
-      - name: Prepare www directory
-        run: |
-          mkdir -p www
-          cp -R src/* www/ || true
-          ls -la www/  # 验证目录内容
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+      
+      # 安装公证工具
+      - name: Install gon
+        run: brew install gon
 
-      # 修复依赖问题
-      - name: Install with legacy deps
+      # 构建并公证
+      - name: Build and Notarize
+        env:
+          AC_PASSWORD: ${{ secrets.AC_PASSWORD }} # 使用您已有的Secret名称
         run: |
-          npm install --legacy-peer-deps
-          npm update rimraf glob inflight --depth=10
-
-      # 分步构建
-      - name: Build App
-        run: |
-          npm run build:web  # 新增专用web构建步骤
+          # 准备目录结构
+          mkdir -p www
+          cp -R src/* www/ || true
+          
+          # 构建Mac应用
+          npm install
           npm run build -- --mac
-
-      # 验证构建结果
-      - name: Verify Build
-        run: |
-          if [ ! -d "dist/mac" ]; then
-            echo "错误：未生成macOS应用"
-            find dist/ -type f
-            exit 1
+          
+          # 动态生成公证配置（直接使用您的邮箱）
+          echo '{
+            "source": ["dist/mac/*.app"],
+            "bundle_id": "com.example.quotation",
+            "apple_id": {
+              "username": "2441686096@qq.com",
+              "password": "@env:AC_PASSWORD"
+            },
+            "notarize": {
+              "timeout": 1200
+            }
+          }' > gon.json
+          
+          # 执行公证
+          gon gon.json
+          
+          # 验证公证结果
+          if [ -f dist/mac/*.app ]; then
+            xattr -cr dist/mac/*.app
+            spctl -a -v dist/mac/*.app
           fi
-          spctl -a -vv dist/mac/*.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-build
+          path: dist/
 
   build-android:
     runs-on: ubuntu-latest
