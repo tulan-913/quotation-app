@@ -28,44 +28,43 @@ jobs:
           path: dist/
 
   build-mac:
-    # 关键修改：动态选择运行器
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && 'macos-13-xlarge' || 'macos-latest' }}
-    
-    # 加速策略
-    strategy:
-      matrix:
-        priority: ["high"]  # 高优先级标签
-    
+    runs-on: macos-13-xlarge
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      # 关键修复：强制创建 www 目录并复制文件
+      - name: Prepare www directory
+        run: |
+          mkdir -p www
+          cp -R src/* www/ || true
+          ls -la www/  # 验证目录内容
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      - name: Build with bypass
+      # 修复依赖问题
+      - name: Install with legacy deps
         run: |
-          echo "正在使用紧急通道绕过队列..."
-          npm ci
+          npm install --legacy-peer-deps
+          npm update rimraf glob inflight --depth=10
+
+      # 分步构建
+      - name: Build App
+        run: |
+          npm run build:web  # 新增专用web构建步骤
           npm run build -- --mac
-          
-          # 验证构建产物
-          if [ -d "dist/mac" ]; then
-            echo "构建成功！"
-            ls -la dist/mac/
-          else
+
+      # 验证构建结果
+      - name: Verify Build
+        run: |
+          if [ ! -d "dist/mac" ]; then
             echo "错误：未生成macOS应用"
+            find dist/ -type f
             exit 1
           fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-build
-          path: dist/
+          spctl -a -vv dist/mac/*.app
 
   build-android:
     runs-on: ubuntu-latest
