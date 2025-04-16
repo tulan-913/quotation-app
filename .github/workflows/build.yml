@@ -138,32 +138,45 @@ jobs:
 
       - name: Build Unsigned IPA
         run: |
-            # 1. 彻底禁用所有签名设置
+            # 1. 清理并创建必要目录
+            rm -rf build/ipa Payload
+            mkdir -p build/ipa
+        
+            # 2. 彻底禁用签名
             sed -i '' 's/DEVELOPMENT_TEAM = .*;//' ios/App/App.xcodeproj/project.pbxproj
             sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*;//' ios/App/App.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGN_STYLE = .*;/CODE_SIGN_STYLE = Manual;/' ios/App/App.xcodeproj/project.pbxproj
         
-            # 2. 构建.app文件（跳过archive阶段）
+            # 3. 构建.app文件
             xcodebuild -workspace ios/App/App.xcworkspace \
                       -scheme App \
                       -configuration Debug \
                       -sdk iphoneos \
                       CODE_SIGN_IDENTITY="-" \
                       CODE_SIGNING_REQUIRED=NO \
-                      CODE_SIGNING_ALLOWED=NO \
                       DEVELOPMENT_TEAM="" \
-                      PROVISIONING_PROFILE_SPECIFIER="" \
                       build \
                       -derivedDataPath build
         
-            # 3. 手动打包IPA（完全绕过Xcode导出）
-            mkdir -p Payload
-            cp -r build/Build/Products/Debug-iphoneos/App.app Payload/
-            zip -qr build/ipa/App.ipa Payload
+            # 4. 确认.app文件位置
+            APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" | head -1)
+            if [ -z "$APP_PATH" ]; then
+              echo "Error: .app file not found!"
+              find build/Build/Products -name "*.app"
+              exit 1
+            fi
+        
+            # 5. 手动打包IPA（带完整路径检查）
+            mkdir Payload
+            cp -r "$APP_PATH" Payload/
+            cd Payload && zip -qr ../build/ipa/App.ipa . && cd ..
             rm -rf Payload
         
-            # 4. 验证输出
+            # 6. 验证输出
             ls -lh build/ipa/App.ipa
+            if [ ! -f "build/ipa/App.ipa" ]; then
+              echo "Error: IPA creation failed!"
+              exit 1
+            fi
 
       - uses: actions/upload-artifact@v4
         with:
