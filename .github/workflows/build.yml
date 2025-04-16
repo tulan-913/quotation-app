@@ -28,55 +28,52 @@ jobs:
           path: dist/
 
   build-mac:
-    runs-on: macos-12 # 指定 macOS Monterey 确保稳定性
+    runs-on: macos-13
+    timeout-minutes: 25 # 设置超时防止卡死
+    
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+    - uses: actions/checkout@v4
       
-      # 安装公证工具
-      - name: Install gon
-        run: brew install gon
-
-      # 构建并公证
-      - name: Build and Notarize
-        env:
-          AC_PASSWORD: ${{ secrets.AC_PASSWORD }} # 使用您已有的Secret名称
-        run: |
-          # 准备目录结构
-          mkdir -p www
-          cp -R src/* www/ || true
-          
-          # 构建Mac应用
-          npm install
-          npm run build -- --mac
-          
-          # 动态生成公证配置（直接使用您的邮箱）
-          echo '{
-            "source": ["dist/mac/*.app"],
-            "bundle_id": "com.example.quotation",
-            "apple_id": {
-              "username": "2441686096@qq.com",
-              "password": "@env:AC_PASSWORD"
-            },
-            "notarize": {
-              "timeout": 1200
-            }
-          }' > gon.json
-          
-          # 执行公证
-          gon gon.json
-          
-          # 验证公证结果
-          if [ -f dist/mac/*.app ]; then
-            xattr -cr dist/mac/*.app
-            spctl -a -v dist/mac/*.app
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-build
-          path: dist/
+    # 快速缓存依赖
+    - uses: actions/cache@v3
+      with:
+        path: |
+          ~/.npm
+          node_modules
+        key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+        
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+    
+    # 并行任务加速
+    - name: Install dependencies
+      run: npm ci --prefer-offline
+      
+    - name: Build app
+      run: npm run build -- --mac
+      
+    # 快速公证方案
+    - name: Notarize
+      if: success()
+      env:
+        AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+      run: |
+        echo '{
+          "source": ["dist/mac/*.app"],
+          "bundle_id": "com.example.quotation",
+          "apple_id": {
+            "username": "2441686096@qq.com",
+            "password": "@env:AC_PASSWORD"
+          }
+        }' > gon.json
+        gon --fast-mode gon.json
+        
+    - uses: actions/upload-artifact@v4
+      with:
+        name: mac-build
+        path: dist/
 
   build-android:
     runs-on: ubuntu-latest
