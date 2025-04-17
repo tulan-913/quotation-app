@@ -41,7 +41,12 @@ jobs:
           ~/.npm
           node_modules
         key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-        
+    
+    - name: Prepare directories
+      run: |
+        mkdir -p www src server/database server/uploads
+        [ -f src/index.html ] || echo "<!DOCTYPE html><html><head><title>Loading...</title></head><body></body></html>" > src/index.html
+
     - uses: actions/setup-node@v4
       with:
         node-version: 20
