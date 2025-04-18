@@ -74,30 +74,18 @@ jobs:
     - name: Build app
       run: npm run build -- --mac
 
-    - name: Setup Notarization
-      run: |
-        # 安装必要的工具链
-        brew install go
-        go install github.com/mitchellh/gon@latest
-        echo "$HOME/go/bin" >> $GITHUB_PATH
-      
     # 快速公证方案
-    - name: Notarize App
+    - name: Notarize
       env:
-        AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+        APPLE_ID: "2441686096@qq.com"
+        APPLE_ID_PASSWORD: "${{ secrets.AC_PASSWORD }}"
       run: |
-        cat <<EOF > gon.json
-        {
-          "source": ["dist/mac/*.app"],
-          "bundle_id": "com.example.quotation",
-          "apple_id": {
-            "username": "2441686096@qq.com",
-            "password": "@env:AC_PASSWORD"
-          }
-        }
-        EOF
-          
-        gon -log-level=debug gon.json
+        npm install @electron/notarize --save-dev
+        npx notarize-cli \
+          --file "dist/mac/*.app" \
+          --bundle-id "com.example.quotation" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
         
     - uses: actions/upload-artifact@v4
       with:
