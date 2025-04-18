@@ -73,6 +73,11 @@ jobs:
       
     - name: Build app
       run: npm run build -- --mac
+
+    - name: Install gon
+      run: |
+        brew install gon
+        echo "$(brew --prefix)/bin" >> $GITHUB_PATH
       
     # 快速公证方案
     - name: Notarize
@@ -80,6 +85,10 @@ jobs:
       env:
         AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
       run: |
+        # 确保gon可用
+        which gon || brew install gon
+
+        # 生成配置文件
         echo '{
           "source": ["dist/mac/*.app"],
           "bundle_id": "com.example.quotation",
@@ -89,6 +98,13 @@ jobs:
           }
         }' > gon.json
         gon --fast-mode gon.json
+        echo "✅ 公证完成"
+
+        # 验证结果
+        if [ -f dist/mac/*.app ]; then
+          xattr -cr dist/mac/*.app
+          spctl -a -v dist/mac/*.app
+        fi
         
     - uses: actions/upload-artifact@v4
       with:
