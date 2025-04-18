@@ -74,37 +74,30 @@ jobs:
     - name: Build app
       run: npm run build -- --mac
 
-    - name: Install gon
+    - name: Setup Notarization
       run: |
-        brew install gon
-        echo "$(brew --prefix)/bin" >> $GITHUB_PATH
+        # 安装必要的工具链
+        brew install go
+        go install github.com/mitchellh/gon@latest
+        echo "$HOME/go/bin" >> $GITHUB_PATH
       
     # 快速公证方案
-    - name: Notarize
-      if: success()
+    - name: Notarize App
       env:
         AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
       run: |
-        # 确保gon可用
-        which gon || brew install gon
-
-        # 生成配置文件
-        echo '{
+        cat <<EOF > gon.json
+        {
           "source": ["dist/mac/*.app"],
           "bundle_id": "com.example.quotation",
           "apple_id": {
             "username": "2441686096@qq.com",
             "password": "@env:AC_PASSWORD"
           }
-        }' > gon.json
-        gon --fast-mode gon.json
-        echo "✅ 公证完成"
-
-        # 验证结果
-        if [ -f dist/mac/*.app ]; then
-          xattr -cr dist/mac/*.app
-          spctl -a -v dist/mac/*.app
-        fi
+        }
+        EOF
+          
+        gon -log-level=debug gon.json
         
     - uses: actions/upload-artifact@v4
       with:
