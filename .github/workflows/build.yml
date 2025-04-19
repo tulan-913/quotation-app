@@ -83,7 +83,7 @@ jobs:
               "password": "@env:AC_PASSWORD"
             },
             "notarize": {
-              "timeout": 600,
+              "timeout": 600
             }
           }
           EOF
