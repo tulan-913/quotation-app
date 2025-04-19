@@ -31,7 +31,8 @@ const dbPath = isMobile ?
   path.join(capacitorApp.getAppPath(), 'database/quotation.db') :
   path.join(process.resourcesPath, 'database/quotation.db');
 const uploadDir = isDev ? devPaths.uploadDir : prodPaths.uploadDir;
-
+const isMobile = process.env.CAPACITOR_PLATFORM === 'android' || 
+                process.env.CAPACITOR_PLATFORM === 'ios';
 
 // 确保目录存在
 [path.dirname(dbPath), uploadDir].forEach(dir => {
@@ -332,24 +333,24 @@ server.get('/download-pdf', async (req, res) => {
       // 替换模板变量
       html = html
         .replace(/\{\{clientName\}\}/g, row.clientName || '')
-        .replace(/\{\{address\}\}/g, data.address || '')
-        .replace(/\{\{contact\}\}/g, data.contact || '')
-        .replace(/\{\{tel\}\}/g, data.tel || '')
-        .replace(/\{\{email\}\}/g, data.email || '')
-        .replace(/\{\{description\}\}/g, data.description || '')
-        .replace(/\{\{materialCode\}\}/g, data.materialCode || '')
+        .replace(/\{\{address\}\}/g, row.address || '')
+        .replace(/\{\{contact\}\}/g, row.contact || '')
+        .replace(/\{\{tel\}\}/g, row.tel || '')
+        .replace(/\{\{email\}\}/g, row.email || '')
+        .replace(/\{\{description\}\}/g, row.description || '')
+        .replace(/\{\{materialCode\}\}/g, row.materialCode || '')
         .replace(/\{\{photo\}\}/g, row.photo ? `http://localhost:${port}${row.photo}` : '')
-        .replace(/\{\{clientDwgMaterial\}\}/g, data.clientDwgMaterial || '')
-        .replace(/\{\{afterReviewMaterial\}\}/g, data.afterReviewMaterial || '')
-        .replace(/\{\{requirements\}\}/g, data.requirements || '')
+        .replace(/\{\{clientDwgMaterial\}\}/g, row.clientDwgMaterial || '')
+        .replace(/\{\{afterReviewMaterial\}\}/g, row.afterReviewMaterial || '')
+        .replace(/\{\{requirements\}\}/g, row.requirements || '')
         .replace(/\{\{unitPrice\}\}/g, unitPrice.toString())
-        .replace(/\{\{unit\}\}/g, `(${data.unitPriceType || ''})`)
+        .replace(/\{\{unit\}\}/g, `(${row.unitPriceType || ''})`)
         .replace(/\{\{quantity\}\}/g, quantity.toString())
         .replace(/\{\{samplingCost\}\}/g, samplingCost.toString())
         .replace(/\{\{mouldCost\}\}/g, mouldCost.toString())
-        .replace(/\{\{sampleNotes\}\}/g, data.sampleNotes || '')
-        .replace(/\{\{mouldCycle\}\}/g, data.mouldCycle || '')
-        .replace(/\{\{massProductionCycle\}\}/g, data.massProductionCycle || '')
+        .replace(/\{\{sampleNotes\}\}/g, row.sampleNotes || '')
+        .replace(/\{\{mouldCycle\}\}/g, row.mouldCycle || '')
+        .replace(/\{\{massProductionCycle\}\}/g, row.massProductionCycle || '')
         .replace(/\{\{totalAmount\}\}/g, totalAmount)
         .replace(/\{\{date\}\}/g, new Date().toISOString().split('T')[0]);
 
@@ -358,9 +359,11 @@ server.get('/download-pdf', async (req, res) => {
         headless: true,
         args: ['--no-sandbox'],
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
-                       (process.platform === 'win32'
-                        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-                        : '/usr/bin/google-chrome')
+              (process.platform === 'darwin'
+               ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+               : process.platform === 'win32'
+                 ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+                 : '/usr/bin/google-chrome')
       });
   
       const page = await browser.newPage();
