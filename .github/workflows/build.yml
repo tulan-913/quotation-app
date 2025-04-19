@@ -40,40 +40,32 @@ jobs:
           mkdir -p www
           cp -R src/* www/ || true
           npm install
-          npm install @electron/notarize --save-dev
+          npm install @electron/notarize --save-dev --ignore-scripts
 
       # 2. 构建应用
       - run: npm run build -- --mac
 
       # 3. 配置公证
-      - name: Notarize macOS App
+      - name: Notarize App
         env:
           APPLE_ID: "2441686096@qq.com"
           APPLE_ID_PASSWORD: ${{ secrets.AC_PASSWORD }}
-          APP_BUNDLE_ID: "com.example.quotation"
         run: |
-          # 确保找到正确的 .app 文件路径
-          APP_PATH=$(find dist -name "*.app" -type d -maxdepth 2 | head -n 1)
+          # 精确查找.app文件路径
+          APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
+          echo "Found app at: $APP_PATH"
           
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: Could not find .app file in dist directory"
-            ls -R dist
-            exit 1
-          fi
-
-          echo "Notarizing: $APP_PATH"
-          
-          # 使用 electron-notarize 进行公证
-          npx electron-notarize notarize \
+          # 直接使用node执行notarize（绕过npx问题）
+          node_modules/.bin/electron-notarize notarize \
             --tool notarytool \
             --app-path "$APP_PATH" \
-            --bundle-id "$APP_BUNDLE_ID" \
+            --bundle-id "com.example.quotation" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD"
 
       # 4. 验证公证结果
       - run: |
-          APP_PATH=$(find dist -name "*.app" -type d -maxdepth 2 | head -n 1)
+          APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
           xcrun stapler validate "$APP_PATH"
           spctl -a -vv "$APP_PATH"
 
