@@ -34,54 +34,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      # 1. 安装依赖（包含 notarize 工具）
       - run: |
           mkdir -p www
-          cp -R src/* www/ || true
+          cp -R src/* www/ || xcopy /E /Y src\\* www\\ 
           npm install
-          npm install @electron/notarize --save-dev --package-lock-only
-          npm ci --omit=dev
-
-      # 2. 构建应用
-      - run: npm run build -- --mac
-
-      # 3. 配置公证
-      - name: Notarize App
-        env:
-          APPLE_ID: "2441686096@qq.com"
-          APPLE_ID_PASSWORD: ${{ secrets.AC_PASSWORD }}
-        run: |
-          # 精确查找.app文件路径
-          APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
-          echo "Notarizing: $APP_PATH"
-          
-          node <<EOF
-          const { notarize } = require('@electron/notarize');
-          (async () => {
-            try {
-              await notarize({
-                tool: 'notarytool',
-                appPath: '$APP_PATH',
-                bundleId: 'com.example.quotation',
-                appleId: '$APPLE_ID',
-                appleIdPassword: '$APPLE_ID_PASSWORD'
-              });
-              console.log('Notarization complete!');
-            } catch (err) {
-              console.error('Notarization failed:', err);
-              process.exit(1);
-            }
-          })();
-          EOF
-
-      # 4. 验证公证结果
-      - run: |
-          APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
-          xcrun stapler validate "$APP_PATH"
-          spctl -a -vv "$APP_PATH"
-
-      # 5. 上传构建结果
+          npm run build -- --mac
       - uses: actions/upload-artifact@v4
         with:
           name: mac-build

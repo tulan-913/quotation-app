@@ -17,8 +17,7 @@
     "build:web": "mkdir -p www && (cp -R src/* www/ || xcopy /E /Y src\\* www\\)",
     "postinstall": "npx cap sync",
     "sync:mobile": "npx cap sync",
-    "debug:android": "ls -la www/ && npx cap sync android",
-    "notarize": "electron-notarize notarize --tool notarytool --app-path ./dist/mac/YourApp.app --bundle-id com.example.quotation --apple-id 2441686096@qq.com --password @env:AC_PASSWORD"
+    "debug:android": "ls -la www/ && npx cap sync android"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.8",
