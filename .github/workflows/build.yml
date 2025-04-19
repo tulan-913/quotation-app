@@ -62,49 +62,46 @@ jobs:
           
       # 公证步骤
       - name: Notarize App
-        env:
-          AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
-        run: |
-          # 1. 确认应用路径
-          APP_PATH=$(find dist/mac -name "*.app" -type d -print -quit)
-          echo "APP_PATH: $APP_PATH"
-
-          # 2. 生成绝对干净的gon.json
-          cat > gon.json <<'EOF'
-          {
-            "source": ["${APP_PATH}"],
-            "bundle_id": "com.example.quotation",
-            "apple_id": {
-              "username": "2441686096@qq.com",
-              "password": "@env:AC_PASSWORD"
-            },
-            "notarize": {
-              "timeout": 600
+          env:
+            AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+          run: |
+            # 1. 确认应用路径（精确匹配中文名）
+            APP_PATH="dist/报价单系统.app"
+            echo "APP_PATH: $APP_PATH"
+            
+            # 2. 生成gon.json（直接硬编码路径）
+            cat > gon.json <<EOF
+            {
+              "source": ["$APP_PATH"],
+              "bundle_id": "com.example.quotation",
+              "apple_id": {
+                "username": "2441686096@qq.com",
+                "password": "@env:AC_PASSWORD"
+              },
+              "notarize": {
+                "timeout": 1200,
+                "verbose": true
+              }
             }
-          }
-          EOF
-
-          # 3. 替换变量（确保无格式破坏）
-          sed -i '' "s|\${APP_PATH}|$APP_PATH|g" gon.json
-
-          # 4. 验证JSON格式
-          if ! jq empty gon.json; then
-            echo "::error::Invalid gon.json:"
-            cat gon.json
-            exit 1
-          fi
-
-          # 5. 执行公证
-          gon -log-level=debug gon.json || {
-            echo "::warning::Notarization failed, fallback to manual signing..."
+            EOF
             
-            # 强化签名
-            codesign --force --deep --options runtime --sign - --timestamp "$APP_PATH"
+            # 3. 验证JSON格式
+            jq empty gon.json || (echo "Invalid gon.json"; cat gon.json; exit 1)
+            
+            # 4. 执行公证（增加重试逻辑）
+            for i in {1..3}; do
+              if gon gon.json; then
+                echo "Notarization succeeded"
+                break
+              else
+                echo "::warning::Attempt $i failed, retrying..."
+                sleep 10
+              fi
+            done
+            
+            # 5. 最终验证
             codesign -dv --verbose=4 "$APP_PATH"
-            
-            # 验证
-            spctl -a -vv --raw "$APP_PATH" || true
-          }
+            spctl -a -vv "$APP_PATH" || true
 
       - uses: actions/upload-artifact@v4
         with:
