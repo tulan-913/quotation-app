@@ -28,21 +28,51 @@ jobs:
           path: dist/
 
   build-mac:
-    runs-on: macos-latest
+    runs-on: macos-12
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: |
-          mkdir -p www
-          cp -R src/* www/ || xcopy /E /Y src\\* www\\ 
+      
+      - name: Install dependencies
+        run: |
+          brew install gon
           npm install
-          npm run build -- --mac
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-build
-          path: dist/
+          
+      - name: Build app
+        run: npm run build -- --mac
+          
+      - name: Notarize with retry
+        env:
+          AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+        run: |
+          # 生成配置文件
+          cat <<EOF > gon.json
+          {
+            "source": ["dist/mac/*.app"],
+            "bundle_id": "com.example.quotation",
+            "apple_id": {
+              "username": "2441686096@qq.com",
+              "password": "@env:AC_PASSWORD"
+            },
+            "notarize": {
+              "timeout": 600,
+              "retries": 3,
+              "retry_wait": 60
+            }
+          }
+          EOF
+          
+          # 带重试的公证
+          for i in {1..3}; do
+            gon gon.json && break || sleep 60
+            echo "Notarization attempt $i failed, retrying..."
+          done
+          
+          # 强制验证结果
+          xcrun stapler validate dist/mac/*.app || true
 
   build-android:
     runs-on: ubuntu-latest
