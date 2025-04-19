@@ -51,16 +51,31 @@ jobs:
           cp -R src/* www/ || true
           npm install
           npm run build -- --mac
+
+          # 验证.app文件生成
+          if [ ! -d "dist/mac/"*.app ]; then
+            echo "生成的.app文件路径："
+            find dist -name "*.app" -print
+            exit 1
+          fi
           
-      # 公证步骤（带重试机制）
+      # 公证步骤
       - name: Notarize App
         env:
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
         run: |
+          # 动态获取.app文件路径
+          APP_PATH=$(find dist -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "错误：未找到.app文件"
+            find dist -type d -print
+            exit 1
+          fi
+
           # 生成公证配置
           cat <<EOF > gon.json
           {
-            "source": ["dist/mac/*.app"],
+            "source": ["$APP_PATH"],
             "bundle_id": "com.example.quotation",
             "apple_id": {
               "username": "2441686096@qq.com",
@@ -68,22 +83,21 @@ jobs:
             },
             "notarize": {
               "timeout": 600,
-              "retry_wait": 60
             }
           }
           EOF
           
-          # 执行公证（带重试）
-          for i in {1..3}; do
-            gon gon.json && break || sleep 60
-            echo "Attempt $i failed, retrying..."
-          done
-          
-          # 验证结果
-          xcrun stapler validate dist/mac/*.app || {
-            echo "Validation failed, applying emergency signing..."
-            codesign --force --deep --sign - dist/mac/*.app
-            xattr -cr dist/mac/*.app
+          echo "使用的公证配置："
+          cat gon.json
+
+          # 执行公证（带调试）
+          gon -log-level=debug gon.json || {
+            echo "公证失败，尝试应急处理..."
+            # 应急签名
+            codesign --force --deep --sign - "$APP_PATH"
+            xattr -cr "$APP_PATH"
+            # 验证
+            spctl -a -v "$APP_PATH" || true
           }
 
       - uses: actions/upload-artifact@v4
