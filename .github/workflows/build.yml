@@ -28,40 +28,40 @@ jobs:
           path: dist/
 
   build-mac:
-    runs-on: macos-latest
-    timeout-minutes: 45
-    
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      runs-on: macos-13 # 使用 Ventura 系统确保稳定性
+      timeout-minutes: 45
+      
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-node@v4
+          with:
+            node-version: 20
 
-      # 安装 gon 的正确方式
-      - name: Install gon (correct method)
-        run: |
-          brew tap mitchellh/gon
-          brew install mitchellh/gon/gon
+        # 安装 gon 的正确方式
+        - name: Install gon
+          run: |
+            brew tap mitchellh/gon
+            brew install gon
 
-      # 构建步骤
-      - name: Build App
-        run: |
-          mkdir -p www server/database server/uploads
-          cp -R src/* www/ || true
-          
-          # 强制清理旧构建
-          rm -rf dist/mac*
-          
-          npm ci
-          npm run build -- --mac
-          
-          # 修复路径：重命名输出目录（适配electron-builder 24+）
-          if [ -d "dist/mac-arm64" ]; then
-            mv dist/mac-arm64 dist/mac
-          fi
-          
-      # 公证步骤
-      - name: Notarize App
+        # 构建步骤
+        - name: Build App
+          run: |
+            mkdir -p www server/database server/uploads
+            cp -R src/* www/ || true
+            
+            # 强制清理旧构建
+            rm -rf dist/mac*
+            
+            npm ci
+            npm run build -- --mac
+            
+            # 修复路径：统一重命名为标准路径
+            if [ -d "dist/mac-arm64" ]; then
+              mv dist/mac-arm64 "dist/报价单系统.app"
+            fi
+
+        # 公证步骤（关键修正部分）
+        - name: Notarize App
           env:
             AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
           run: |
@@ -103,10 +103,10 @@ jobs:
             codesign -dv --verbose=4 "$APP_PATH"
             spctl -a -vv "$APP_PATH" || true
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-build
-          path: dist/
+        - uses: actions/upload-artifact@v4
+          with:
+            name: mac-build
+            path: dist/
 
   build-android:
     runs-on: ubuntu-latest
