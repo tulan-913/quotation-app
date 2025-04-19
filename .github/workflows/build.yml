@@ -43,20 +43,21 @@ jobs:
           brew tap mitchellh/gon
           brew install mitchellh/gon/gon
 
-      # 构建步骤（带步骤级超时）
+      # 构建步骤
       - name: Build App
-        timeout-minutes: 25
         run: |
-          mkdir -p www
+          mkdir -p www server/database server/uploads
           cp -R src/* www/ || true
-          npm install
+          
+          # 强制清理旧构建
+          rm -rf dist/mac*
+          
+          npm ci
           npm run build -- --mac
-
-          # 验证.app文件生成
-          if [ ! -d "dist/mac/"*.app ]; then
-            echo "生成的.app文件路径："
-            find dist -name "*.app" -print
-            exit 1
+          
+          # 修复路径：重命名输出目录（适配electron-builder 24+）
+          if [ -d "dist/mac-arm64" ]; then
+            mv dist/mac-arm64 dist/mac
           fi
           
       # 公证步骤
@@ -64,11 +65,11 @@ jobs:
         env:
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
         run: |
-          # 动态获取.app文件路径
-          APP_PATH=$(find dist -name "*.app" -print -quit)
+          # 确认.app文件路径
+          APP_PATH=$(find dist/mac -name "*.app" -type d -print -quit)
           if [ -z "$APP_PATH" ]; then
-            echo "错误：未找到.app文件"
-            find dist -type d -print
+            echo "::error::未找到.app文件，当前dist目录结构："
+            find dist -type d | sed 's/^/  /'
             exit 1
           fi
 
@@ -87,16 +88,11 @@ jobs:
           }
           EOF
           
-          echo "使用的公证配置："
-          cat gon.json
-
           # 执行公证（带调试）
           gon -log-level=debug gon.json || {
-            echo "公证失败，尝试应急处理..."
-            # 应急签名
+            echo "::warning::公证失败，尝试应急处理..."
             codesign --force --deep --sign - "$APP_PATH"
             xattr -cr "$APP_PATH"
-            # 验证
             spctl -a -v "$APP_PATH" || true
           }
 
