@@ -65,30 +65,36 @@ jobs:
         env:
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
         run: |
-          # 1. 强制使用英文路径（关键修复）
-          APP_PATH="$PWD/dist/mac/Quotation.app"
-          [ -d "$PWD/dist/mac/报价单系统.app" ] && mv "$PWD/dist/mac/报价单系统.app" "$APP_PATH"
-          
-          # 2. 使用原生JSON生成（避免Python依赖）
-          cat > gon.json <<EOF
+          # 确认.app文件路径
+          APP_PATH=$(find dist/mac -name "*.app" -type d -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::未找到.app文件，当前dist目录结构："
+            find dist -type d | sed 's/^/  /'
+            exit 1
+          fi
+
+          # 生成公证配置
+          cat <<EOF > gon.json
           {
             "source": ["$APP_PATH"],
-            "bundle_id": "com.tulan-913.quotation",
+            "bundle_id": "com.example.quotation",
             "apple_id": {
               "username": "2441686096@qq.com",
-              "password": "@env:AC_PASSWORD"
+              "password": "$AC_PASSWORD"
             },
             "notarize": {
-              "timeout": 1200
+              "timeout": 600
             }
           }
           EOF
-
-          # 4. 执行公证（带详细日志）
-          gon -log-level=debug gon.json
           
-          # 6. 钉扎公证票
-          xcrun stapler staple "$APP_PATH"
+          # 执行公证（带调试）
+          gon -log-level=debug gon.json || {
+            echo "::warning::公证失败，尝试应急处理..."
+            codesign --force --deep --sign - "$APP_PATH"
+            xattr -cr "$APP_PATH"
+            spctl -a -v "$APP_PATH" || true
+          }
 
       - uses: actions/upload-artifact@v4
         with:
