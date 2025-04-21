@@ -65,17 +65,20 @@ jobs:
         env:
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
         run: |
-          # 确认.app文件路径
-          APP_PATH=$(find dist/mac -name "*.app" -type d -print -quit)
-          if [ -z "$APP_PATH" ]; then
-            echo "::error::未找到.app文件，当前dist目录结构："
-            find dist -type d | sed 's/^/  /'
+          # 硬编码.app路径（避免find命令问题）
+          APP_PATH="dist/mac/报价单系统.app"
+          
+          # 验证应用是否存在
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::应用文件不存在：$APP_PATH"
+            ls -la dist/mac/
             exit 1
           fi
 
-          # 生成公证配置
-          echo '{
-            "source": ["'"$APP_PATH"'"],
+          # 使用 heredoc 生成严格JSON
+          cat << 'EOF' > gon.json
+          {
+            "source": ["dist/mac/报价单系统.app"],
             "bundle_id": "com.example.quotation",
             "apple_id": {
               "username": "2441686096@qq.com",
@@ -84,15 +87,17 @@ jobs:
             "notarize": {
               "timeout": 600
             }
-          }' > gon.json
-          
-          # 执行公证（带调试）
-          gon -log-level=debug gon.json || {
-            echo "::warning::公证失败，尝试应急处理..."
-            codesign --force --deep --sign - "$APP_PATH"
-            xattr -cr "$APP_PATH"
-            spctl -a -v "$APP_PATH" || true
           }
+          EOF
+
+          # 调试输出
+          echo "=== gon.json 内容 ==="
+          cat gon.json
+          echo "=== 文件校验 ==="
+          codesign -dv --verbose=4 "$APP_PATH"
+
+          # 执行公证
+          gon -log-level=debug gon.json
 
       - uses: actions/upload-artifact@v4
         with:
