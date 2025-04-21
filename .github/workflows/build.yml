@@ -65,39 +65,39 @@ jobs:
         env:
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
         run: |
-          # 硬编码.app路径（避免find命令问题）
-          APP_PATH="dist/mac/报价单系统.app"
+          # 确保使用绝对路径
+          APP_PATH="$PWD/dist/mac/报价单系统.app"
           
-          # 验证应用是否存在
-          if [ ! -d "$APP_PATH" ]; then
-            echo "::error::应用文件不存在：$APP_PATH"
-            ls -la dist/mac/
-            exit 1
-          fi
-
-          # 使用 heredoc 生成严格JSON
-          cat << 'EOF' > gon.json
-          {
-            "source": ["dist/mac/报价单系统.app"],
-            "bundle_id": "com.example.quotation",
-            "apple_id": {
-              "username": "2441686096@qq.com",
-              "password": "@env:AC_PASSWORD"
-            },
-            "notarize": {
-              "timeout": 600
-            }
+          # 使用 Python 生成严格 JSON（避免 shell 转义问题）
+          python3 -c '
+          import json
+          import os
+          config = {
+              "source": [os.path.expanduser("'"$APP_PATH"'")],
+              "bundle_id": "com.example.quotation",
+              "apple_id": {
+                  "username": "2441686096@qq.com",
+                  "password": "@env:AC_PASSWORD"
+              },
+              "notarize": {"timeout": 600}
           }
-          EOF
-
-          # 调试输出
-          echo "=== gon.json 内容 ==="
-          cat gon.json
-          echo "=== 文件校验 ==="
-          codesign -dv --verbose=4 "$APP_PATH"
-
+          with open("gon.json", "w") as f:
+              json.dump(config, f, indent=2)
+              '
+              
+              # 验证生成的 JSON
+              echo "=== 生成的 gon.json ==="
+              cat gon.json
+              echo "=== JSON 有效性验证 ==="
+              python3 -c "import json; json.load(open('gon.json'))" || exit 1
+          
+          # 使用最新版 gon（绕过 Homebrew 问题）
+          curl -L https://github.com/mitchellh/gon/releases/download/v0.2.3/gon_mac.zip -o gon.zip
+          unzip gon.zip
+          chmod +x gon
+          
           # 执行公证
-          gon -log-level=debug gon.json
+          ./gon -log-level=debug gon.json
 
       - uses: actions/upload-artifact@v4
         with:
