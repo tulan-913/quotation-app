@@ -65,39 +65,38 @@ jobs:
         env:
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
         run: |
-          # 确保使用绝对路径
-          APP_PATH="$PWD/dist/mac/报价单系统.app"
+          # 1. 强制使用英文路径（关键修复）
+          APP_PATH="$PWD/dist/mac/Quotation.app"
+          mv "$PWD/dist/mac/报价单系统.app" "$APP_PATH"
           
-          # 使用 Python 生成严格 JSON（避免 shell 转义问题）
-          python3 -c '
-          import json
-          import os
-          config = {
-              "source": [os.path.expanduser("'"$APP_PATH"'")],
-              "bundle_id": "com.example.quotation",
-              "apple_id": {
-                  "username": "2441686096@qq.com",
-                  "password": "@env:AC_PASSWORD"
-              },
-              "notarize": {"timeout": 600}
+          # 2. 使用原生JSON生成（避免Python依赖）
+          cat > gon.json <<EOF
+          {
+            "source": ["$APP_PATH"],
+            "bundle_id": "com.example.quotation",
+            "apple_id": {
+              "username": "2441686096@qq.com",
+              "password": "@env:AC_PASSWORD"
+            },
+            "notarize": {
+              "timeout": 1200
+            }
           }
-          with open("gon.json", "w") as f:
-              json.dump(config, f, indent=2)
-              '
-              
-              # 验证生成的 JSON
-              echo "=== 生成的 gon.json ==="
-              cat gon.json
-              echo "=== JSON 有效性验证 ==="
-              python3 -c "import json; json.load(open('gon.json'))" || exit 1
+          EOF
+
+          # 3. 安装 gon 的正确方式
+          brew install --cask gon
           
-          # 使用最新版 gon（绕过 Homebrew 问题）
-          curl -L https://github.com/mitchellh/gon/releases/download/v0.2.3/gon_mac.zip -o gon.zip
-          unzip gon.zip
-          chmod +x gon
+          # 4. 执行公证（带详细日志）
+          /usr/local/bin/gon -log-level=debug gon.json 2>&1 | tee notarize.log
           
-          # 执行公证
-          ./gon -log-level=debug gon.json
+          # 5. 失败时获取诊断信息
+          if [ $? -ne 0 ]; then
+            echo "::error::公证失败，查看详细日志："
+            cat notarize.log
+            xcrun altool --notarization-history -u "2441686096@qq.com" -p "@env:AC_PASSWORD"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
