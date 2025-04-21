@@ -67,8 +67,13 @@ jobs:
         run: |
           # 1. 强制使用英文路径（关键修复）
           APP_PATH="$PWD/dist/mac/Quotation.app"
-          mv "$PWD/dist/mac/报价单系统.app" "$APP_PATH"
+          [ -d "$PWD/dist/mac/报价单系统.app" ] && mv "$PWD/dist/mac/报价单系统.app" "$APP_PATH"
           
+          # 2. 安装 gon 最新版（直接下载二进制）
+          curl -L https://github.com/mitchellh/gon/releases/download/v0.2.3/gon_macos_amd64.zip -o gon.zip
+          unzip gon.zip -d /usr/local/bin/
+          chmod +x /usr/local/bin/gon
+
           # 2. 使用原生JSON生成（避免Python依赖）
           cat > gon.json <<EOF
           {
@@ -84,19 +89,18 @@ jobs:
           }
           EOF
 
-          # 3. 安装 gon 的正确方式
-          brew install --cask gon
-          
           # 4. 执行公证（带详细日志）
           /usr/local/bin/gon -log-level=debug gon.json 2>&1 | tee notarize.log
           
-          # 5. 失败时获取诊断信息
+          # 5. 验证结果
           if [ $? -ne 0 ]; then
-            echo "::error::公证失败，查看详细日志："
+            echo "::error::公证失败，查看日志："
             cat notarize.log
-            xcrun altool --notarization-history -u "2441686096@qq.com" -p "@env:AC_PASSWORD"
             exit 1
           fi
+          
+          # 6. 钉扎公证票
+          xcrun stapler staple "$APP_PATH"
 
       - uses: actions/upload-artifact@v4
         with:
