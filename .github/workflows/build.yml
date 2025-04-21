@@ -69,12 +69,11 @@ jobs:
           APP_PATH="$PWD/dist/mac/Quotation.app"
           [ -d "$PWD/dist/mac/报价单系统.app" ] && mv "$PWD/dist/mac/报价单系统.app" "$APP_PATH"
           
-          # 2. 安装 gon 最新版（直接下载二进制）
-          curl -L https://github.com/mitchellh/gon/releases/download/v0.2.3/gon_macos_amd64.zip -o gon.zip
-          unzip gon.zip -d /usr/local/bin/
-          chmod +x /usr/local/bin/gon
+          # 2. 使用 Homebrew 安装 gon（更可靠的方式）
+          brew tap mitchellh/gon
+          brew install gon
 
-          # 2. 使用原生JSON生成（避免Python依赖）
+          # 3. 使用原生JSON生成（避免Python依赖）
           cat > gon.json <<EOF
           {
             "source": ["$APP_PATH"],
@@ -90,7 +89,7 @@ jobs:
           EOF
 
           # 4. 执行公证（带详细日志）
-          /usr/local/bin/gon -log-level=debug gon.json 2>&1 | tee notarize.log
+          gon -log-level=debug gon.json 2>&1 | tee notarize.log
           
           # 5. 验证结果
           if [ $? -ne 0 ]; then
