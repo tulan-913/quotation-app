@@ -69,15 +69,11 @@ jobs:
           APP_PATH="$PWD/dist/mac/Quotation.app"
           [ -d "$PWD/dist/mac/报价单系统.app" ] && mv "$PWD/dist/mac/报价单系统.app" "$APP_PATH"
           
-          # 2. 使用 Homebrew 安装 gon（更可靠的方式）
-          brew tap mitchellh/gon
-          brew install gon
-
-          # 3. 使用原生JSON生成（避免Python依赖）
+          # 2. 使用原生JSON生成（避免Python依赖）
           cat > gon.json <<EOF
           {
             "source": ["$APP_PATH"],
-            "bundle_id": "com.example.quotation",
+            "bundle_id": "com.tulan-913.quotation",
             "apple_id": {
               "username": "2441686096@qq.com",
               "password": "@env:AC_PASSWORD"
@@ -89,14 +85,7 @@ jobs:
           EOF
 
           # 4. 执行公证（带详细日志）
-          gon -log-level=debug gon.json 2>&1 | tee notarize.log
-          
-          # 5. 验证结果
-          if [ $? -ne 0 ]; then
-            echo "::error::公证失败，查看日志："
-            cat notarize.log
-            exit 1
-          fi
+          gon -log-level=debug gon.json
           
           # 6. 钉扎公证票
           xcrun stapler staple "$APP_PATH"
