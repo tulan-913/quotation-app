@@ -6,56 +6,57 @@ const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const puppeteer = require('puppeteer-core');
+const { Capacitor } = require('@capacitor/core');
+const { Filesystem } = require('@capacitor/filesystem');
 
 // 初始化Express应用
 const server = express();
 const port = 4000;
 
 /* ==================== 路径配置 ==================== */
-// 获取应用数据目录（兼容开发和生产环境）
-const devPaths = {
-  dbPath: path.join(require('os').homedir(), '.quotation-app-data', 'database', 'quotation.db'),
-  uploadDir: path.join(require('os').homedir(), '.quotation-app-data', 'uploads')
-};
-
-// 生产环境路径（指向 resources 文件夹）
-const prodPaths = {
-  dbPath: path.join(process.resourcesPath, 'database', 'quotation.db'),
-  uploadDir: path.join(process.resourcesPath, 'uploads')
-};
-
-// 根据环境选择路径
-const isDev = process.env.NODE_ENV === 'development';
-//const dbPath = isDev ? devPaths.dbPath : prodPaths.dbPath;
-const dbPath = isMobile ? 
-  path.join(capacitorApp.getAppPath(), 'database/quotation.db') :
-  path.join(process.resourcesPath, 'database/quotation.db');
-const uploadDir = isDev ? devPaths.uploadDir : prodPaths.uploadDir;
-
-
-// 确保目录存在
-[path.dirname(dbPath), uploadDir].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-});
-
-console.log(`数据库路径: ${dbPath}`);
-console.log(`上传目录: ${uploadDir}`);
+async function getAppPaths() {
+  // 移动端路径处理（Android/iOS）
+  if (Capacitor.isNativePlatform()) {
+    await Filesystem.mkdir({
+      path: 'database',
+      directory: 'DATA',
+      recursive: true
+    });
+    await Filesystem.mkdir({
+      path: 'uploads',
+      directory: 'DATA',
+      recursive: true
+    });
+    return {
+      dbPath: `${Filesystem.dataDirectory}database/quotation.db`,
+      uploadDir: `${Filesystem.dataDirectory}uploads`,
+      photoBaseUrl: '/_capacitor_file_/data/user/0/com.example.quotation/files/uploads/'
+    };
+  }
+  // 开发环境路径
+  const devPaths = {
+    dbPath: path.join(__dirname, 'database/quotation.db'),
+    uploadDir: path.join(__dirname, 'uploads'),
+    photoBaseUrl: '/uploads/'
+  };
+  fs.mkdirSync(path.dirname(devPaths.dbPath), { recursive: true });
+  fs.mkdirSync(devPaths.uploadDir, { recursive: true });
+  return devPaths;
+}
 
 /* ==================== SQLite数据库初始化 ==================== */
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-  if (err) {
-    console.error('❌ SQLite连接失败:', err);
-    process.exit(1);
-  }
-  console.log('✅ SQLite连接成功');
-  initializeDatabase();
-});
+async function initDatabase() {
+  const { dbPath } = await getAppPaths();
+  const finalPath = Capacitor.isNativePlatform() ? 
+    dbPath.replace('file://', '') : dbPath;
 
-function initializeDatabase() {
-  const createTableQuery = `
+  const db = new sqlite3.Database(finalPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE);
+  
+  // 建表语句（保留您原有的表结构）
+  db.run(`
     CREATE TABLE IF NOT EXISTS quotations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      createdAt TEXT DEFAULT (datetime('now', 'localtime')),
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       clientName TEXT NOT NULL,
       address TEXT,
       contact TEXT NOT NULL,
@@ -75,26 +76,20 @@ function initializeDatabase() {
       sampleNotes TEXT,
       mouldCycle TEXT,
       massProductionCycle TEXT
-    )`;
+    )
+  `);
   
-  db.run(createTableQuery, (err) => {
-    if (err) console.error('❌ 创建表失败:', err);
-    else console.log('✅ 表初始化完成');
-  });
+  return db;
 }
 
 /* ==================== 文件上传配置 ==================== */
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // 确保上传目录存在
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+  destination: async (req, file, cb) => {
+    const { uploadDir } = await getAppPaths();
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}${ext}`);
+    cb(null, `${Date.now()}${path.extname(file.originalname)}`);
   }
 });
 const upload = multer({ storage });
@@ -140,52 +135,55 @@ function getPhotoUrl(filename) {
 }
 
 /* ==================== 路由处理 ==================== */
-// 首页路由
-server.get(['/', '/index.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, '../src/index.html'));
-});
-
-// 提交报价单
-server.post('/submit', upload.single('photo'), async (req, res) => {
-  try {
-    // 验证必填字段
-    const requiredFields = ['clientName', 'contact', 'description', 'unitPriceType', 'unitPrice'];
-    for (const field of requiredFields) {
-      if (!req.body[field]) throw new Error(`缺少必填字段: ${field}`);
-    }
-
-    const data = {
-      ...req.body,
-      photo: req.file ? `/uploads/${req.file.filename}` : null,
-      unitPrice: parseFloat(req.body.unitPrice),
-      samplingCost: req.body.samplingCost ? parseFloat(req.body.samplingCost) : null,
-      mouldCost: req.body.mouldCost ? parseFloat(req.body.mouldCost) : null
-    };
-
-    const keys = Object.keys(data).join(',');
-    const values = Object.values(data);
-    const placeholders = values.map(() => '?').join(',');
-
-    const result = await dbRun(
-      `INSERT INTO quotations (${keys}) VALUES (${placeholders})`,
-      values
-    );
-
+async function setupRoutes(app, db) {
+  // 文件上传路由（示例）
+  app.post('/api/upload', upload.single('file'), async (req, res) => {
+    const { photoBaseUrl } = await getAppPaths();
     res.json({ 
-      success: true, 
-      id: result.lastID,
-      photoUrl: getPhotoUrl(data.photo)
+      url: `${photoBaseUrl}${req.file.filename}` 
     });
-  } catch (error) {
-    console.error('提交错误:', error);
-    res.status(500).json({ 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
+  });
 
-// 获取最新报价单
+  // 报价单提交路由（保留您原有的业务逻辑）
+  app.post('/api/submit', upload.single('photo'), async (req, res) => {
+    try {
+      // 验证必填字段
+      const requiredFields = ['clientName', 'contact', 'description', 'unitPriceType', 'unitPrice'];
+      for (const field of requiredFields) {
+        if (!req.body[field]) throw new Error(`缺少必填字段: ${field}`);
+      }
+  
+      const data = {
+        ...req.body,
+        photo: req.file ? `/uploads/${req.file.filename}` : null,
+        unitPrice: parseFloat(req.body.unitPrice),
+        samplingCost: req.body.samplingCost ? parseFloat(req.body.samplingCost) : null,
+        mouldCost: req.body.mouldCost ? parseFloat(req.body.mouldCost) : null
+      };
+  
+      const keys = Object.keys(data).join(',');
+      const values = Object.values(data);
+      const placeholders = values.map(() => '?').join(',');
+  
+      const result = await dbRun(
+        `INSERT INTO quotations (${keys}) VALUES (${placeholders})`,
+        values
+      );
+  
+      res.json({ 
+        success: true, 
+        id: result.lastID,
+        photoUrl: getPhotoUrl(data.photo)
+      });
+    } catch (error) {
+      console.error('提交错误:', error);
+      res.status(500).json({ 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  });
+   // 获取最新报价单
 server.get('/quotation', async (req, res) => {
   try {
     const row = await dbGet('SELECT * FROM quotations ORDER BY id DESC LIMIT 1');
@@ -473,6 +471,10 @@ async function deleteImageFile(imageUrl) {
       }
   });
 }
+}
+
+
+
 
 /* ==================== 错误处理 ==================== */
 server.use((err, req, res, next) => {
@@ -484,18 +486,20 @@ server.use((err, req, res, next) => {
 });
 
 /* ==================== 启动服务器 ==================== */
-if (require.main === module) {
-  server.listen(port, () => {
-    console.log(`🚀 服务器运行在 http://localhost:${port}`);
-    console.log(`📁 数据库文件: ${dbPath}`);
-    console.log(`🖼️ 上传目录: ${uploadDir}`);
-  });
-}
-
-module.exports = {
-  server,
-  port,
-  db,
-  uploadDir,
-  dbPath
-};
+(async () => {
+  try {
+    const db = await initDatabase();
+    const app = express();
+    
+    app.use(express.json());
+    app.use('/uploads', express.static((await getAppPaths()).uploadDir));
+    
+    await setupRoutes(app, db);
+    
+    app.listen(port, () => {
+      console.log(`Server running at http://localhost:${port}`);
+    });
+  } catch (err) {
+    console.error('Server startup failed:', err);
+  }
+})();
