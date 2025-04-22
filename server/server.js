@@ -13,6 +13,10 @@ const { Filesystem } = require('@capacitor/filesystem');
 const server = express();
 const port = 4000;
 
+// 全局变量
+let db;
+let uploadDir;
+
 /* ==================== 路径配置 ==================== */
 async function getAppPaths() {
   // 移动端路径处理（Android/iOS）
@@ -33,14 +37,21 @@ async function getAppPaths() {
       photoBaseUrl: '/_capacitor_file_/data/user/0/com.example.quotation/files/uploads/'
     };
   }
+  
   // 开发环境路径
   const devPaths = {
     dbPath: path.join(__dirname, 'database/quotation.db'),
     uploadDir: path.join(__dirname, 'uploads'),
     photoBaseUrl: '/uploads/'
   };
-  fs.mkdirSync(path.dirname(devPaths.dbPath), { recursive: true });
-  fs.mkdirSync(devPaths.uploadDir, { recursive: true });
+  
+  if (!fs.existsSync(path.dirname(devPaths.dbPath))) {
+    fs.mkdirSync(path.dirname(devPaths.dbPath), { recursive: true });
+  }
+  if (!fs.existsSync(devPaths.uploadDir)) {
+    fs.mkdirSync(devPaths.uploadDir, { recursive: true });
+  }
+  
   return devPaths;
 }
 
@@ -50,58 +61,63 @@ async function initDatabase() {
   const finalPath = Capacitor.isNativePlatform() ? 
     dbPath.replace('file://', '') : dbPath;
 
-  const db = new sqlite3.Database(finalPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE);
-  
-  // 建表语句（保留您原有的表结构）
-  db.run(`
-    CREATE TABLE IF NOT EXISTS quotations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      clientName TEXT NOT NULL,
-      address TEXT,
-      contact TEXT NOT NULL,
-      tel TEXT,
-      email TEXT,
-      description TEXT NOT NULL,
-      materialCode TEXT,
-      photo TEXT,
-      clientDwgMaterial TEXT,
-      afterReviewMaterial TEXT,
-      requirements TEXT,
-      unitPriceType TEXT NOT NULL,
-      unitPrice REAL NOT NULL,
-      quantity TEXT,
-      samplingCost REAL,
-      mouldCost REAL,
-      sampleNotes TEXT,
-      mouldCycle TEXT,
-      massProductionCycle TEXT
-    )
-  `);
-  
-  return db;
+  return new Promise((resolve, reject) => {
+    const database = new sqlite3.Database(finalPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        // 建表语句
+        database.run(`
+          CREATE TABLE IF NOT EXISTS quotations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            createdAt TEXT DEFAULT (datetime('now', 'localtime')),
+            clientName TEXT NOT NULL,
+            address TEXT,
+            contact TEXT NOT NULL,
+            tel TEXT,
+            email TEXT,
+            description TEXT NOT NULL,
+            materialCode TEXT,
+            photo TEXT,
+            clientDwgMaterial TEXT,
+            afterReviewMaterial TEXT,
+            requirements TEXT,
+            unitPriceType TEXT NOT NULL,
+            unitPrice REAL NOT NULL,
+            quantity TEXT,
+            samplingCost REAL,
+            mouldCost REAL,
+            sampleNotes TEXT,
+            mouldCycle TEXT,
+            massProductionCycle TEXT
+          )
+        `, (err) => {
+          if (err) reject(err);
+          else resolve(database);
+        });
+      }
+    });
+  });
 }
 
 /* ==================== 文件上传配置 ==================== */
-const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const { uploadDir } = await getAppPaths();
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}${path.extname(file.originalname)}`);
-  }
-});
-const upload = multer({ storage });
-
-/* ==================== 中间件配置 ==================== */
-server.use(bodyParser.json());
-server.use(bodyParser.urlencoded({ extended: true }));
-server.use(cors());
-server.use('/uploads', express.static(uploadDir));
+async function configureUpload() {
+  const paths = await getAppPaths();
+  uploadDir = paths.uploadDir;
+  
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        cb(null, `${Date.now()}${path.extname(file.originalname)}`);
+      }
+    })
+  });
+}
 
 /* ==================== 辅助函数 ==================== */
-// 封装SQLite操作为Promise
 function dbRun(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function(err) {
@@ -129,51 +145,83 @@ function dbAll(sql, params = []) {
   });
 }
 
-function getPhotoUrl(filename) {
+async function getPhotoUrl(filename) {
   if (!filename) return null;
+  
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { uri } = await Filesystem.getUri({
+        path: `uploads/${path.basename(filename)}`,
+        directory: 'DATA'
+      });
+      return Capacitor.convertFileSrc(uri);
+    } catch (err) {
+      console.error('获取图片URI失败:', err);
+      return null;
+    }
+  }
+  
   return `/uploads/${path.basename(filename)}?t=${Date.now()}`;
 }
 
+async function deleteImageFile(imageUrl) {
+  try {
+    const filename = path.basename(imageUrl.split('?')[0]);
+    
+    if (Capacitor.isNativePlatform()) {
+      await Filesystem.deleteFile({
+        path: `uploads/${filename}`,
+        directory: 'DATA'
+      });
+    } else {
+      fs.unlinkSync(path.join(uploadDir, filename));
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+}
+
 /* ==================== 路由处理 ==================== */
-async function setupRoutes(app, db) {
-  // 文件上传路由（示例）
-  app.post('/api/upload', upload.single('file'), async (req, res) => {
-    const { photoBaseUrl } = await getAppPaths();
-    res.json({ 
-      url: `${photoBaseUrl}${req.file.filename}` 
-    });
+async function setupRoutes(app, uploadMiddleware) {
+  // 文件上传路由
+  app.post('/api/upload', uploadMiddleware.single('file'), async (req, res) => {
+    try {
+      const photoUrl = await getPhotoUrl(req.file.filename);
+      res.json({ success: true, url: photoUrl });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  // 报价单提交路由（保留您原有的业务逻辑）
-  app.post('/api/submit', upload.single('photo'), async (req, res) => {
+  // 报价单提交
+  app.post('/submit', uploadMiddleware.single('photo'), async (req, res) => {
     try {
-      // 验证必填字段
       const requiredFields = ['clientName', 'contact', 'description', 'unitPriceType', 'unitPrice'];
       for (const field of requiredFields) {
         if (!req.body[field]) throw new Error(`缺少必填字段: ${field}`);
       }
-  
+
       const data = {
         ...req.body,
-        photo: req.file ? `/uploads/${req.file.filename}` : null,
+        photo: req.file ? req.file.filename : null,
         unitPrice: parseFloat(req.body.unitPrice),
         samplingCost: req.body.samplingCost ? parseFloat(req.body.samplingCost) : null,
         mouldCost: req.body.mouldCost ? parseFloat(req.body.mouldCost) : null
       };
-  
+
       const keys = Object.keys(data).join(',');
       const values = Object.values(data);
       const placeholders = values.map(() => '?').join(',');
-  
+
       const result = await dbRun(
         `INSERT INTO quotations (${keys}) VALUES (${placeholders})`,
         values
       );
-  
+
       res.json({ 
         success: true, 
         id: result.lastID,
-        photoUrl: getPhotoUrl(data.photo)
+        photoUrl: await getPhotoUrl(data.photo)
       });
     } catch (error) {
       console.error('提交错误:', error);
@@ -183,31 +231,31 @@ async function setupRoutes(app, db) {
       });
     }
   });
-   // 获取最新报价单
-server.get('/quotation', async (req, res) => {
-  try {
-    const row = await dbGet('SELECT * FROM quotations ORDER BY id DESC LIMIT 1');
-    if (!row) return res.status(404).json({ error: '没有报价单数据' });
 
-    res.json({
-      ...row,
-      photo: getPhotoUrl(row.photo),
-      samplingCost: row.samplingCost || 0,
-      mouldCost: row.mouldCost || 0,
-      totalAmount: (
-        (row.unitPrice || 0) * (parseInt(row.quantity) || 0) + 
-        (parseFloat(row.samplingCost) || 0) + 
-        (parseFloat(row.mouldCost) || 0)
-      ).toFixed(2)
-    });
-  } catch (error) {
-    console.error('查询错误:', error);
-    res.status(500).json({ error: '数据库错误' });
-  }
-});
+  // 获取最新报价单
+  app.get('/quotation', async (req, res) => {
+    try {
+      const row = await dbGet('SELECT * FROM quotations ORDER BY id DESC LIMIT 1');
+      if (!row) return res.status(404).json({ error: '没有报价单数据' });
 
-// 报价单详情
-server.get('/quotation-detail', async (req, res) => {
+      res.json({
+        ...row,
+        photo: await getPhotoUrl(row.photo),
+        samplingCost: row.samplingCost || 0,
+        mouldCost: row.mouldCost || 0,
+        totalAmount: (
+          (row.unitPrice || 0) * (parseInt(row.quantity) || 0) + 
+          (parseFloat(row.samplingCost) || 0) + 
+          (parseFloat(row.mouldCost) || 0)
+        ).toFixed(2)
+      });
+    } catch (error) {
+      console.error('查询错误:', error);
+      res.status(500).json({ error: '数据库错误' });
+    }
+  });
+
+  server.get('/quotation-detail', async (req, res) => {
     try {
       const { id } = req.query;
       if (!id) throw new Error('缺少报价单ID参数');
@@ -473,33 +521,40 @@ async function deleteImageFile(imageUrl) {
 }
 }
 
-
-
-
-/* ==================== 错误处理 ==================== */
-server.use((err, req, res, next) => {
-  console.error('全局错误:', err.stack);
-  res.status(500).json({ 
-    error: '服务器内部错误',
-    details: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
-});
-
 /* ==================== 启动服务器 ==================== */
 (async () => {
   try {
-    const db = await initDatabase();
-    const app = express();
+    // 初始化路径和数据库
+    const paths = await getAppPaths();
+    db = await initDatabase();
+    const uploadMiddleware = await configureUpload();
     
-    app.use(express.json());
-    app.use('/uploads', express.static((await getAppPaths()).uploadDir));
+    // 中间件
+    server.use(bodyParser.json());
+    server.use(bodyParser.urlencoded({ extended: true }));
+    server.use(cors());
+    server.use('/uploads', express.static(paths.uploadDir));
     
-    await setupRoutes(app, db);
+    // 设置路由
+    await setupRoutes(server, uploadMiddleware);
     
-    app.listen(port, () => {
-      console.log(`Server running at http://localhost:${port}`);
+    // 错误处理
+    server.use((err, req, res, next) => {
+      console.error('全局错误:', err.stack);
+      res.status(500).json({ 
+        error: '服务器内部错误',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    });
+    
+    // 启动服务
+    server.listen(port, () => {
+      console.log(`服务器运行在 http://localhost:${port}`);
+      console.log(`数据库路径: ${paths.dbPath}`);
+      console.log(`上传目录: ${paths.uploadDir}`);
     });
   } catch (err) {
-    console.error('Server startup failed:', err);
+    console.error('服务器启动失败:', err);
+    process.exit(1);
   }
 })();
