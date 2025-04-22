@@ -21,9 +21,11 @@
   },
   "dependencies": {
     "@capacitor/android": "^5.7.8",
+    "@capacitor/app": "^5.0.0",
     "@capacitor/core": "^5.7.8",
     "@capacitor/filesystem": "^5.0.0",
     "@capacitor/ios": "^5.7.8",
+    "@capacitor/preferences": "^5.0.0",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
